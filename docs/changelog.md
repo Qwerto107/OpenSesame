@@ -2,9 +2,9 @@
 
 [文档中心](README.md) · [下载版本](https://github.com/Qwerto107/OpenSesame/releases) · [发布流程](releasing.md)
 
-## 未发布
+## v1.0.0 · 2026-11-01
 
-当前源码包版本为 `0.1.0`，正式发布日期与附件以 Releases 页面为准。
+首个正式版本，提供 Windows x64、Linux x64 / ARM64、macOS Intel / Apple Silicon 应用。
 
 ### 新增
 
