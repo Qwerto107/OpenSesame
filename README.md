@@ -60,6 +60,8 @@
 
 下载校验及运行要求见[二进制说明](docs/binary.md)，完整操作见[使用指南](docs/usage.md)。
 
+初次接触端口敲门，可先阅读 [knockd 工作机制](docs/usage.md#knockd-工作机制)，了解客户端发送序列、服务端放行和业务端口检测的关系。
+
 ## 支持范围
 
 - 目标为 Windows 10 / 11 x64、Linux x64 / ARM64、macOS Intel / Apple Silicon。新增平台以对应 Actions 和实机验证结果为准。
