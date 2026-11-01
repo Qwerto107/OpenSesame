@@ -2980,6 +2980,7 @@ dependencies = [
  "chrono",
  "embed-resource",
  "image",
+ "libc",
  "rspolib",
  "serde",
  "serde_json",

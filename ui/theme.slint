@@ -1,5 +1,10 @@
+import { Palette as NativePalette } from "std-widgets.slint";
+
 export global Palette {
-    in-out property <bool> dark: true;
+    in-out property <int> appearance;
+    in-out property <string> font-family: "Microsoft YaHei";
+    property <color> native-background: NativePalette.background;
+    out property <bool> dark: appearance == 1 || (appearance == 0 && native-background.to-oklch().lightness < 0.5);
     out property <color> canvas: dark ? #0B0F17 : #F4F7FB;
     out property <color> sidebar: dark ? #0D121C : #EEF2F8;
     out property <color> titlebar: dark ? #080B12 : #FFFFFF;

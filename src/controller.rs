@@ -116,6 +116,17 @@ impl App {
         let language = i18n::resolve(&config.settings.language);
         slint::select_bundled_translation(language)
             .map_err(|error| Message::from(error.to_string()))?;
+        ui.set_config_path(store.path.to_string_lossy().into_owned().into());
+        ui.global::<Palette>().set_font_family(
+            if cfg!(windows) {
+                "Microsoft YaHei"
+            } else if cfg!(target_os = "macos") {
+                "PingFang SC"
+            } else {
+                "Noto Sans CJK SC"
+            }
+            .into(),
+        );
         let mut app = Self {
             language,
             config,
@@ -832,10 +843,10 @@ impl App {
             return;
         };
         ui.global::<Palette>()
-            .set_dark(match self.config.settings.appearance {
-                Appearance::Dark => true,
-                Appearance::Light => false,
-                Appearance::System => system_dark(),
+            .set_appearance(match self.config.settings.appearance {
+                Appearance::System => 0,
+                Appearance::Dark => 1,
+                Appearance::Light => 2,
             });
         let rows = self
             .config
@@ -1131,32 +1142,4 @@ fn protocol(udp: bool) -> Protocol {
 }
 fn now() -> String {
     chrono::Local::now().format("%H:%M:%S").to_string()
-}
-
-#[cfg(windows)]
-fn system_dark() -> bool {
-    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
-    let path: Vec<u16> = "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize\0"
-        .encode_utf16()
-        .collect();
-    let key: Vec<u16> = "AppsUseLightTheme\0".encode_utf16().collect();
-    let mut value: u32 = 1;
-    let mut size = 4;
-    // 只读取 Windows 应用主题设置，不修改系统注册表。
-    let result = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            path.as_ptr(),
-            key.as_ptr(),
-            RRF_RT_REG_DWORD,
-            std::ptr::null_mut(),
-            (&mut value as *mut u32).cast(),
-            &mut size,
-        )
-    };
-    result == 0 && value == 0
-}
-#[cfg(not(windows))]
-fn system_dark() -> bool {
-    true
 }

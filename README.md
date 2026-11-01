@@ -4,13 +4,13 @@
 
 # OpenSesame
 
-适用于 Windows 的通用端口敲门客户端。管理多台服务器，按 TCP / UDP 序列开门，持续查看业务端口状态。
+跨平台通用端口敲门客户端。管理多台服务器，按 TCP / UDP 序列开门，持续查看业务端口状态。
 
 [快速开始](#快速开始) · [文档中心](docs/README.md) · [配置参考](docs/configuration.md) · [下载版本](https://github.com/Qwerto107/OpenSesame/releases)
 
-**Rust + Slint** · **TCP / UDP** · **Windows 10 / 11**
+**Rust + Slint** · **TCP / UDP** · **Windows / Linux / macOS**
 
-一个 EXE，解压即用，无需安装 WebView2 或 .NET。配置保存在当前用户的 AppData。
+各平台原生应用，无需安装 WebView2 或 .NET。配置按系统规范保存在当前用户目录。
 
 </div>
 
@@ -50,11 +50,11 @@
 | 启动自动开门 | 可选开启，作用于上次选中的服务器 |
 | 独立批量设置 | 单独替换敲门序列或业务端口，也可同时修改 |
 | 外观与语言 | 浅色、深色、跟随系统；简体中文、English、跟随系统 |
-| 本地配置 | 自动保存至 `%APPDATA%\OpenSesame\config.json` |
+| 本地配置 | 按平台保存至用户配置目录，详见[配置参考](docs/configuration.md) |
 
 ## 快速开始
 
-1. 从 [Releases](https://github.com/Qwerto107/OpenSesame/releases) 下载 `opensesame-windows-amd64.zip`，解压并运行 `OpenSesame.exe`。若尚未发布版本，可按[开发指南](docs/development.md)从源码构建。
+1. 从 [Releases](https://github.com/Qwerto107/OpenSesame/releases) 下载对应平台的发行包；Windows 运行 `OpenSesame.exe`，Linux 运行 `OpenSesame`，macOS 打开 `OpenSesame.app`。若尚未发布版本，可按[开发指南](docs/development.md)从源码构建。
 2. 点击“新增”，填写名称、IP 或域名、服务端对应的开门序列，以及需要检测的业务端口。
 3. 保存并点击“开门”，查看业务端口的检测结果。自动检测、启动自动开门和检测周期可在“设置”中调整。
 
@@ -62,7 +62,8 @@
 
 ## 支持范围
 
-- 目标平台为 Windows 10 / 11 x64。当前本机验证环境为 Windows 11，Windows 10 实机兼容性待验证。
+- 目标为 Windows 10 / 11 x64、Linux x64 / ARM64、macOS Intel / Apple Silicon。新增平台以对应 Actions 和实机验证结果为准。
+- Linux 需要桌面图形库；macOS 测试包使用临时签名，尚未进行 Developer ID 签名、公证。详见[运行要求](docs/deployment.md#运行要求)。
 - 当前提供开门操作；关门序列尚未提供。
 - TCP 敲门使用普通套接字发送 SYN，建议服务端 knockd 配置 `TCPFlags = syn`；不提供自定义 TCP 标志或原始报文编辑。
 - TCP“可连接”只表示连接建立。UDP 使用空数据报探测，无响应显示“无法确认”，不能据此判断端口关闭。

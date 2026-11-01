@@ -2,11 +2,13 @@
 
 [文档中心](README.md) · [配置参考](configuration.md) · [发布流程](releasing.md)
 
-本项目使用 Rust + Slint，目标为 Windows x64，界面、字体、翻译与 EXE 图标随程序构建。
+本项目使用 Rust + Slint，目标为 Windows x64、Linux x64 / ARM64、macOS Intel / Apple Silicon，界面、字体、翻译与各平台应用图标随程序构建。
 
 [环境](#开发环境) · [目录](#代码结构) · [运行](#本地运行) · [构建](#完整程序) · [验证](#按需验证) · [约定](#实现约定)
 
 ## 开发环境
+
+下述环境和命令适用于 Windows；Linux / macOS 的原生构建见[Unix 开发](#unix-开发)。
 
 | 工具 | 用途 |
 | --- | --- |
@@ -34,6 +36,42 @@ $env:AR = 'C:\msys64\mingw64\bin\ar.exe'
 
 构建脚本也兼容项目 `.tools` 中的便携式 Rust / MinGW 工具链；这些缓存不属于源码交付内容。应用运行无需上述开发工具。
 
+## Unix 开发
+
+需要 Rust 1.99.1、Git、Bash 和 Python 3.9 以上。macOS 需 Xcode Command Line Tools，打包使用系统的 `sips`、`iconutil` 和 `codesign`。Linux 安装以下依赖：
+
+```sh
+sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev fonts-noto-cjk xvfb xauth
+bash scripts/build.sh fmt
+bash scripts/build.sh lint
+bash scripts/build.sh test
+bash scripts/build.sh release
+./dist/OpenSesame
+```
+
+Unix 按当前系统和 CPU 选择一条打包命令，脚本拒绝不匹配的架构：
+
+```sh
+bash .github/scripts/package-binary.sh linux-amd64
+bash .github/scripts/package-binary.sh linux-arm64
+bash .github/scripts/package-binary.sh darwin-amd64
+bash .github/scripts/package-binary.sh darwin-arm64
+```
+
+Linux 输出 TAR.GZ，macOS 输出包含图标和临时签名的 `.app` ZIP。macOS 本地构建应设置 `MACOSX_DEPLOYMENT_TARGET=12.0`，与 CI 一致。正式 Developer ID 签名、公证需另行配置。Unix 不要求安装 PowerShell。
+
+隔离验证、预览与发行检查示例：
+
+```sh
+bash scripts/build.sh qa
+./target/debug/opensesame --self-test
+./target/debug/opensesame --screenshot artifacts/en-main-light.png --scene main-light --language en
+# Linux 使用虚拟 X11 显示验证原生窗口启动
+xvfb-run -a python3 .github/scripts/check-binary.py linux-amd64 --smoke-test
+# macOS 检查打包后的 app
+python3 .github/scripts/check-binary.py darwin-arm64 --smoke-test
+```
+
 ## 代码结构
 
 | 路径 | 内容 |
@@ -41,12 +79,12 @@ $env:AR = 'C:\msys64\mingw64\bin\ar.exe'
 | `src/model.rs` | 配置模型、字段校验与批量更新 |
 | `src/network.rs` | TCP / UDP 敲门、业务探测及同 IP 互斥 |
 | `src/controller.rs` | 界面回调、调度、设置与状态管理 |
-| `src/storage.rs` | AppData 读取、校验与安全写入 |
+| `src/storage.rs` | 平台配置目录、读取校验与安全写入 |
 | `src/i18n.rs`、`i18n/` | 运行时消息与语言目录 |
 | `src/preview.rs` | `qa` 功能下的隔离验证与截图 |
 | `ui/` | Slint 主窗口、组件和主题 |
 | `assets/`、`build.rs` | 字体、图标、状态 SVG 和构建资源 |
-| `scripts/build.ps1` | 常用本地构建入口 |
+| `scripts/build.ps1`、`scripts/build.sh` | Windows 与 Unix 构建入口，Bash 入口也可转发 Windows 操作 |
 | `.github/` | CI 环境、检查、打包和发布脚本 |
 
 ## 本地运行
@@ -58,7 +96,7 @@ $env:AR = 'C:\msys64\mingw64\bin\ar.exe'
 .\target\debug\opensesame.exe
 ```
 
-普通开发程序与发行程序使用同一 AppData 配置。仅验证界面时优先使用下述隔离入口，避免自动敲门或检测真实服务器。
+普通开发程序与发行程序使用同一[平台配置目录](configuration.md#配置位置)。仅验证界面时优先使用下述隔离入口，避免自动敲门或检测真实服务器。
 
 ## 完整程序
 
@@ -115,7 +153,7 @@ cargo audit --file Cargo.lock
 - UDP 使用空数据报。无回复是“无法确认”，不等于端口关闭，也不等于业务可用。
 - 同一解析 IP 的敲门与业务探测互斥；不同 IP 可并行，周期从本轮完成后计算，避免重叠和堆积。
 - 异步结果按服务器 ID 和当前任务代次核对，配置编辑或删除后不应用过期结果。
-- 主题、语言和状态文案复用现有组件与翻译资源。新增语言遵循[语言资源说明](../i18n/README.md)，不要复制业务逻辑。
+- 字体按平台选择微软雅黑、苹方或 Noto Sans CJK，复选标记使用 SVG；系统主题由 Slint 读取，各平台统一使用 Fluent 标准控件。主题、语言和状态文案复用现有组件与翻译资源。新增语言遵循[语言资源说明](../i18n/README.md)，不要复制业务逻辑。
 - 代码注释使用中文，修改范围遵循项目协作规则；验收并获得明确授权后才提交，不擅自推送。
 
 原始[需求说明](requirements.md)及[设计对应与实施说明](implementation.md)作为开发背景保留，当前用户行为以使用指南和配置参考为准。

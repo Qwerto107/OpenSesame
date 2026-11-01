@@ -415,8 +415,8 @@ msgstr "更新业务检测端口"
 msgid "Waiting for the first check"
 msgstr "等待首次检测"
 
-msgid "Windows AppData was not found."
-msgstr "未找到 Windows AppData 目录"
+msgid "The user configuration directory could not be found."
+msgstr "未找到用户配置目录"
 
 msgid "e.g. Home NAS"
 msgstr "例如：家庭 NAS"

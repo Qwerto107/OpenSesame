@@ -39,11 +39,12 @@ export component AppWindow inherits Window {
     icon: @image-url("../assets/icon.svg");
     preferred-width: 1120px; preferred-height: 720px;
     min-width: 1000px; min-height: 680px;
-    default-font-family: "Microsoft YaHei"; default-font-size: 13px;
+    default-font-family: Palette.font-family; default-font-size: 13px;
     background: Palette.canvas;
-    property <bool> dark-ui: Palette.dark;
-    init => { NativePalette.color-scheme = root.dark-ui ? ColorScheme.dark : ColorScheme.light; }
-    changed dark-ui => { NativePalette.color-scheme = root.dark-ui ? ColorScheme.dark : ColorScheme.light; }
+    property <int> appearance: Palette.appearance;
+    init => { NativePalette.color-scheme = root.appearance == 1 ? ColorScheme.dark : root.appearance == 2 ? ColorScheme.light : ColorScheme.unknown; }
+    changed appearance => { NativePalette.color-scheme = root.appearance == 1 ? ColorScheme.dark : root.appearance == 2 ? ColorScheme.light : ColorScheme.unknown; }
+    in property <string> config-path;
 
     in property <[ServerRow]> servers;
     in property <[StepRow]> sequence;
@@ -526,7 +527,7 @@ export component AppWindow inherits Window {
             }
                 }
             }
-            Label { text: @tr("Config file  {0}", "%APPDATA%\\OpenSesame\\config.json"); }
+            Label { text: @tr("Config file  {0}", root.config-path); overflow: elide; }
             if root.form-error != "": ErrorNotice { text: root.form-error; }
             HorizontalLayout { height: 36px; alignment: end; spacing: 10px;
                 UiButton { text: @tr("Cancel"); clicked => { root.dialog = 0; } }

@@ -213,12 +213,24 @@ fn start_tcp_knock(target: SocketAddr) -> Result<Socket, Message> {
         Err(error)
             if error.kind() == io::ErrorKind::WouldBlock
                 || error.kind() == io::ErrorKind::ConnectionRefused
-                || matches!(error.raw_os_error(), Some(10035 | 10036 | 10037 | 115)) =>
+                || connect_in_progress(&error) =>
         {
             Ok(socket)
         }
         Err(error) => Err(network_error(error)),
     }
+}
+
+fn connect_in_progress(error: &io::Error) -> bool {
+    // 非阻塞连接已开始时仍算敲门发送成功，各系统的 EINPROGRESS 数值不同。
+    #[cfg(unix)]
+    let pending = matches!(
+        error.raw_os_error(),
+        Some(libc::EINPROGRESS | libc::EALREADY)
+    );
+    #[cfg(windows)]
+    let pending = matches!(error.raw_os_error(), Some(10035..=10037));
+    pending
 }
 
 pub async fn probe(server: &Server, pinned: Option<IpAddr>) -> ProbeResult {

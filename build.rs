@@ -39,8 +39,9 @@ fn main() {
         catalog,
     )
     .unwrap();
-    // 界面与 Rust 状态消息共用 PO 资源，并全部嵌入 EXE。
+    // 界面与 Rust 状态消息共用 PO 资源，并全部嵌入原生程序。
     let config = slint_build::CompilerConfiguration::new()
+        .with_style("fluent".into())
         .embed_resources(slint_build::EmbedResourcesKind::EmbedFiles)
         .with_default_translation_context(slint_build::DefaultTranslationContext::None)
         .with_bundled_translations("i18n");

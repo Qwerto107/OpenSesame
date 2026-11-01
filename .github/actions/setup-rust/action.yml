@@ -1,28 +1,35 @@
-name: Windows Rust 构建环境
-description: 使用项目固定的 Rust 工具链及 MinGW-w64，复用依赖缓存
+name: 原生 Rust 构建环境
+description: 配置固定工具链、平台依赖及各架构独立缓存
+inputs:
+  target:
+    description: 与 runner 架构一致的 Rust 目标
+    required: true
 runs:
   using: composite
   steps:
     - name: 读取工具链版本
       id: toolchain
-      shell: pwsh
+      shell: bash
+      env:
+        RUST_TARGET: ${{ inputs.target }}
       run: |
-        $source = Get-Content -LiteralPath rust-toolchain.toml -Raw
-        $match = [regex]::Match($source, '(?m)^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$')
-        if (-not $match.Success) { throw 'rust-toolchain.toml 缺少固定版本' }
-        "version=$($match.Groups[1].Value)-x86_64-pc-windows-gnu" >> $env:GITHUB_OUTPUT
+        version="$(sed -n 's/^channel *= *"\([0-9.]*\)" *$/\1/p' rust-toolchain.toml | tr -d '\r')"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+        echo "version=$version-$RUST_TARGET" >> "$GITHUB_OUTPUT"
     - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
       id: rust
       with:
         toolchain: ${{ steps.toolchain.outputs.version }}
         components: rustfmt, clippy
     - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+      if: runner.os == 'Windows'
       id: msys2
       with:
         msystem: MINGW64
         update: false
         install: mingw-w64-x86_64-gcc
     - name: 配置 Windows 原生构建工具
+      if: runner.os == 'Windows'
       shell: pwsh
       env:
         MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
@@ -37,7 +44,21 @@ runs:
         "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(Join-Path $bin 'gcc.exe')" >> $env:GITHUB_ENV
         "CC=$(Join-Path $bin 'gcc.exe')" >> $env:GITHUB_ENV
         "AR=$(Join-Path $bin 'ar.exe')" >> $env:GITHUB_ENV
+        'RUSTFLAGS=-C link-arg=-Wl,--no-insert-timestamp' >> $env:GITHUB_ENV
+    - name: 配置 Unix 原生构建工具
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        SELECTED_TOOLCHAIN: ${{ steps.rust.outputs.name }}
+      run: |
+        echo "RUSTUP_TOOLCHAIN=$SELECTED_TOOLCHAIN" >> "$GITHUB_ENV"
+        if [[ "$RUNNER_OS" == Linux ]]; then
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev fonts-noto-cjk xvfb xauth
+        else
+          echo 'MACOSX_DEPLOYMENT_TARGET=12.0' >> "$GITHUB_ENV"
+        fi
     - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       with:
-        shared-key: windows-gnu
+        shared-key: ${{ runner.os == 'Windows' && 'windows-gnu' || inputs.target }}
         save-if: ${{ github.ref == 'refs/heads/main' }}

@@ -122,7 +122,13 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let app = App::new(
         &ui,
         ConfigStore {
-            path: PathBuf::from(".design/unused-preview.json"),
+            path: PathBuf::from(if cfg!(windows) {
+                r"%APPDATA%\OpenSesame\config.json"
+            } else if cfg!(target_os = "macos") {
+                "~/Library/Application Support/OpenSesame/config.json"
+            } else {
+                "~/.config/OpenSesame/config.json"
+            }),
         },
         config,
         None,

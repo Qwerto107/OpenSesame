@@ -13,7 +13,7 @@
 
 ## 部署
 
-下载 Windows x64 压缩包，解压后运行。程序与配置分开保存，升级时替换程序即可。
+下载对应系统和架构的发行包，解压后运行。程序与配置分开保存，升级时替换应用即可。
 
 | 要做的事 | 文档 |
 | --- | --- |
@@ -33,9 +33,9 @@
 
 | 内容 | 路径 | 说明 |
 | --- | --- | --- |
-| 发行程序 | 解压目录中的 `OpenSesame.exe` | 可自行选择目录 |
-| 用户配置 | `%APPDATA%\OpenSesame\config.json` | 当前 Windows 用户，首次保存时创建 |
-| 本地构建程序 | `dist\OpenSesame.exe` | 从源码根目录构建 |
-| 发行压缩包 | `dist\release\opensesame-windows-amd64.zip` | 与同名 `.sha256` 一起交付 |
+| 发行程序 | Windows：`OpenSesame.exe`；Linux：`OpenSesame`；macOS：`OpenSesame.app` | 可自行选择目录 |
+| 用户配置 | 见[平台配置目录](configuration.md#配置位置) | 当前用户，首次保存时创建 |
+| 本地构建程序 | Windows：`dist/OpenSesame.exe`；Unix：`dist/OpenSesame` | 从源码根目录构建 |
+| 发行压缩包 | `dist/release/opensesame-{平台}.{zip或tar.gz}` | 与同名 `.sha256` 一起交付 |
 
 界面预览见[项目首页](../README.md#界面一览)，平台及附件以对应 Release 为准。

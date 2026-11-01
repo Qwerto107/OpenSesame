@@ -4,4 +4,5 @@
 /dist/
 /artifacts/
 *.pdb
+__pycache__/
 
