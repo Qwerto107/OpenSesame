@@ -1,0 +1,438 @@
+msgid ""
+msgstr "Language: zh-CN\nContent-Type: text/plain; charset=UTF-8\nPlural-Forms: nplurals=1; plural=0;\nX-Display-Name: 简体中文\n"
+
+msgid "+ Add"
+msgstr "+ 新增"
+
+msgid "+ Add server"
+msgstr "+ 新增服务器"
+
+msgid "+ Add step"
+msgstr "+ 添加步骤"
+
+msgid "1  Enter address"
+msgstr "1  填写地址"
+
+msgid "2  Set sequence"
+msgstr "2  设置敲门序列"
+
+msgid "3  Set service port"
+msgstr "3  配置业务端口"
+
+msgid "A connection was established; authentication was not checked."
+msgstr "仅表示连接建立，不代表登录成功"
+
+msgid "Add a server, set its knock sequence and service port,\nthen knock and monitor its connection status."
+msgstr "添加一台服务器，配置敲门序列和要检测的业务端口，\n之后即可一键开门并随时查看端口状态。"
+
+msgid "Add at least one knock step."
+msgstr "请至少添加一个敲门步骤"
+
+msgid "Add server"
+msgstr "新增服务器"
+
+msgid "All servers"
+msgstr "全部服务器"
+
+msgid "Appearance"
+msgstr "外观"
+
+msgid "Apply to {0}"
+msgstr "应用到 {0} 台"
+
+msgid "Apply to {0} selected servers. Names and addresses stay unchanged."
+msgstr "将应用到已选 {0} 台服务器，名称与地址不会改变"
+
+msgid "Auto-check"
+msgstr "自动检测"
+
+msgid "Back to current server"
+msgstr "返回当前服务器"
+
+msgid "Basic information"
+msgstr "基本信息"
+
+msgid "Batch edit"
+msgstr "批量设置"
+
+msgid "Batch knock"
+msgstr "批量开门"
+
+msgid "Batch knock completed"
+msgstr "批量开门已完成"
+
+msgid "Batch settings"
+msgstr "批量设置"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Check after knocking"
+msgstr "敲门后检测"
+
+msgid "Check at regular intervals and show each server's status in the list."
+msgstr "按间隔定时检测，并在清单中显示每台服务器的状态"
+
+msgid "Check error"
+msgstr "检测错误"
+
+msgid "Check interval"
+msgstr "检测间隔"
+
+msgid "Check interval (s)"
+msgstr "检测间隔（秒）"
+
+msgid "Check interval must be between 1 and 86400 s."
+msgstr "检测间隔须在 1～86400 秒之间"
+
+msgid "Check ports automatically"
+msgstr "自动检测端口状态"
+
+msgid "Check the highlighted settings and try again."
+msgstr "请检查设置后重试。"
+
+msgid "Check timeout"
+msgstr "单次超时"
+
+msgid "Check timeout (s)"
+msgstr "单次超时（秒）"
+
+msgid "Check timeout must be between 1 and 120 s."
+msgstr "单次超时须在 1～120 秒之间"
+
+msgid "Check {protocol} {port} after knocking"
+msgstr "敲门完成后检测 {protocol} {port}"
+
+msgid "Checking"
+msgstr "检测中"
+
+msgid "Choose at least one setting to update."
+msgstr "请至少选择一个修改项目"
+
+msgid "Config file  {0}"
+msgstr "配置文件  {0}"
+
+msgid "Connection refused"
+msgstr "连接被拒绝"
+
+msgid "Could not create the configuration directory: {error}"
+msgstr "创建配置目录失败：{error}"
+
+msgid "Could not read the configuration: {error}"
+msgstr "读取配置失败：{error}"
+
+msgid "Could not replace the configuration: {error}"
+msgstr "替换配置失败：{error}"
+
+msgid "Could not write the configuration: {error}"
+msgstr "写入配置失败：{error}"
+
+msgid "Current server only"
+msgstr "仅当前服务器"
+
+msgid "Dark"
+msgstr "深色"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Delete server"
+msgstr "删除服务器"
+
+msgid "Delete {0} and its local settings?"
+msgstr "确认删除“{0}”及其本地配置？"
+
+msgid "Disabled: keep each server's existing port and protocol."
+msgstr "未开启：保留各服务器原有的业务检测端口及协议。"
+
+msgid "Display name"
+msgstr "显示名称"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Edit server"
+msgstr "编辑服务器"
+
+msgid "Enter a display name."
+msgstr "请填写显示名称"
+
+msgid "Enter a valid IP address or hostname, without a protocol or path."
+msgstr "请填写有效的 IP 或域名，不包含协议前缀或路径"
+
+msgid "Every 30 s"
+msgstr "每 30 秒"
+
+msgid "Every {seconds}s"
+msgstr "每 {seconds} 秒"
+
+msgid "Failed: {count}"
+msgstr "{count} 台发送失败"
+
+msgid "Follow system"
+msgstr "跟随系统"
+
+msgid "Hostname resolution failed: {error}"
+msgstr "无法解析服务器地址：{error}"
+
+msgid "Hostname resolution timed out."
+msgstr "服务器地址解析超时"
+
+msgid "IP address or hostname"
+msgstr "IP 或域名"
+
+msgid "In {seconds}s"
+msgstr "{seconds} 秒后"
+
+msgid "Invalid configuration directory."
+msgstr "配置目录无效"
+
+msgid "Invalid configuration; the original file was preserved: {error}"
+msgstr "配置格式错误，原文件已保留：{error}"
+
+msgid "Invalid language selection."
+msgstr "无效的语言选项。"
+
+msgid "Knock"
+msgstr "开门"
+
+msgid "Knock on startup"
+msgstr "启动后自动敲门"
+
+msgid "Knock on the restored current server when the app starts."
+msgstr "打开客户端时，对恢复的当前服务器开门"
+
+msgid "Knock ports must be between 1 and 65535."
+msgstr "敲门端口须在 1～65535 之间"
+
+msgid "Knock sequence"
+msgstr "开门序列"
+
+msgid "Knocking {current}/{total}"
+msgstr "敲门中 {current}/{total}"
+
+msgid "Knocking…"
+msgstr "敲门中…"
+
+msgid "Language"
+msgstr "语言"
+
+msgid "Last checked"
+msgstr "最近检测"
+
+msgid "Light"
+msgstr "亮色"
+
+msgid "Monitoring scope"
+msgstr "检测范围"
+
+msgid "Network operation failed: {error}"
+msgstr "网络操作失败：{error}"
+
+msgid "Next check"
+msgstr "下次检测"
+
+msgid "No connection was established within the configured timeout."
+msgstr "在配置的超时时间内未能建立连接"
+
+msgid "No response received; this does not mean the port is closed."
+msgstr "未收到响应，不代表端口关闭"
+
+msgid "No servers"
+msgstr "暂无服务器"
+
+msgid "No servers yet"
+msgstr "还没有服务器"
+
+msgid "No usable address was found for this hostname."
+msgstr "服务器地址没有可用的解析结果"
+
+msgid "Not checked"
+msgstr "未检测"
+
+msgid "Not knocked yet"
+msgstr "尚未敲门"
+
+msgid "Off"
+msgstr "已关闭"
+
+msgid "OpenSesame could not start: {error}"
+msgstr "OpenSesame 启动失败：{error}"
+
+msgid "Port monitoring"
+msgstr "端口检测"
+
+msgid "Port must be an integer between 1 and 65535."
+msgstr "端口须为 1～65535 之间的整数"
+
+msgid "Protocol"
+msgstr "检测协议"
+
+msgid "Reachable"
+msgstr "可连接"
+
+msgid "Replace the sequence. Each server keeps its step interval and timeout."
+msgstr "整体替换原序列；步骤间隔与时间上限保持各服务器原值。"
+
+msgid "Reserved: text/HEX payload and response matching. No response means Unknown, not Closed."
+msgstr "预留：探测内容（文本／HEX）与响应判断规则。无响应时将显示“无法确认”，不会判定为关闭。"
+
+msgid "Responded"
+msgstr "有响应"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Select at least one server."
+msgstr "请先勾选服务器"
+
+msgid "Select {0}"
+msgstr "勾选 {0}"
+
+msgid "Selected: {0}"
+msgstr "已选 {0} 台"
+
+msgid "Selected: {0} · Checks run after knocking"
+msgstr "已选 {0} 台 · 敲门完成后自动检测业务端口"
+
+msgid "Send failed"
+msgstr "发送失败"
+
+msgid "Send failed · {error}"
+msgstr "发送失败 · {error}"
+
+msgid "Sending a sequence does not confirm access. Check the service port status below."
+msgstr "“已发送”不等于开门成功，请以下方端口检测结果为准。"
+
+msgid "Sending step {current} / {total}"
+msgstr "正在发送第 {current} / {total} 步"
+
+msgid "Sent: {sent} · Reachable: {reachable} · Unknown: {unknown}"
+msgstr "{sent} 台敲门序列已发送 · {reachable} 台端口可连接 · {unknown} 台无法确认"
+
+msgid "Sequence sent · Steps: {current} / {total}"
+msgstr "敲门序列已发送 · {current} / {total} 步"
+
+msgid "Sequence timed out. Check the address, interval and timeout."
+msgstr "序列发送超时，请检查地址、间隔及时间上限"
+
+msgid "Sequence timeout"
+msgstr "序列时间上限"
+
+msgid "Sequence timeout (s)"
+msgstr "序列时间上限（秒）"
+
+msgid "Sequence timeout must be between 1 and 300 s."
+msgstr "序列时间上限须在 1～300 秒之间"
+
+msgid "Server ID cannot be empty."
+msgstr "服务器标识不能为空"
+
+msgid "Server address"
+msgstr "服务器地址"
+
+msgid "Servers"
+msgstr "服务器"
+
+msgid "Service check"
+msgstr "业务检测"
+
+msgid "Service port"
+msgstr "业务端口"
+
+msgid "Service port must be between 1 and 65535."
+msgstr "业务端口须在 1～65535 之间"
+
+msgid "Service port status"
+msgstr "业务端口状态"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Some servers no longer exist. Select them again."
+msgstr "部分服务器已不存在，请重新选择"
+
+msgid "Startup"
+msgstr "启动"
+
+msgid "Step interval"
+msgstr "步骤间隔"
+
+msgid "Step interval (ms)"
+msgstr "步骤间隔（毫秒）"
+
+msgid "Step interval must be between 10 and 60000 ms."
+msgstr "步骤间隔须在 10～60000 毫秒之间"
+
+msgid "TCP reachable"
+msgstr "TCP 可连接"
+
+msgid "The configuration contains duplicate server IDs."
+msgstr "配置包含重复服务器标识"
+
+msgid "The knock sequence cannot be empty."
+msgstr "敲门序列不能为空"
+
+msgid "The original configuration was preserved. Fix the file and restart the app."
+msgstr "配置读取失败，原文件已保留；修复配置文件后重新打开程序。"
+
+msgid "The selected servers changed. Select them again."
+msgstr "所选服务器已发生变化，请重新选择"
+
+msgid "The sequence exceeds its timeout. Increase the timeout or shorten the interval."
+msgstr "序列时间上限不足以发送全部步骤，请增大上限或缩短间隔"
+
+msgid "The target replied with {bytes} bytes; authentication was not checked."
+msgstr "目标端口已回复 {bytes} 字节；未验证业务认证"
+
+msgid "The window is closed."
+msgstr "窗口已关闭"
+
+msgid "Timed out"
+msgstr "检测超时"
+
+msgid "UDP probe"
+msgstr "UDP 探测"
+
+msgid "UDP probe (available for UDP)"
+msgstr "UDP 探测（选择 UDP 协议后启用）"
+
+msgid "UDP responded"
+msgstr "UDP 有响应"
+
+msgid "Unknown"
+msgstr "无法确认"
+
+msgid "Unsupported configuration version: {version}"
+msgstr "不支持的配置版本：{version}"
+
+msgid "Update knock sequence"
+msgstr "更新敲门序列"
+
+msgid "Update service port"
+msgstr "更新业务检测端口"
+
+msgid "Waiting for the first check"
+msgstr "等待首次检测"
+
+msgid "Windows AppData was not found."
+msgstr "未找到 Windows AppData 目录"
+
+msgid "e.g. Home NAS"
+msgstr "例如：家庭 NAS"
+
+msgid "{field} must be a positive integer."
+msgstr "{field}须为有效的正整数"
+
+msgid "{name}: {error}"
+msgstr "{name}：{error}"
+
+msgid "{sent} / {total} sent"
+msgstr "{sent} / {total} 已发送"
+
+msgid "{time}  Sequence sent · Steps: {steps} · Time: {elapsed}s"
+msgstr "{time}  敲门序列已发送（{steps} 步，耗时 {elapsed} 秒）"
+
+msgid "{time}  {error}"
+msgstr "{time}  {error}"
+

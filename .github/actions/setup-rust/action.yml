@@ -1,0 +1,43 @@
+name: Windows Rust 构建环境
+description: 使用项目固定的 Rust 工具链及 MinGW-w64，复用依赖缓存
+runs:
+  using: composite
+  steps:
+    - name: 读取工具链版本
+      id: toolchain
+      shell: pwsh
+      run: |
+        $source = Get-Content -LiteralPath rust-toolchain.toml -Raw
+        $match = [regex]::Match($source, '(?m)^channel\s*=\s*"(\d+\.\d+\.\d+)"\s*$')
+        if (-not $match.Success) { throw 'rust-toolchain.toml 缺少固定版本' }
+        "version=$($match.Groups[1].Value)-x86_64-pc-windows-gnu" >> $env:GITHUB_OUTPUT
+    - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      id: rust
+      with:
+        toolchain: ${{ steps.toolchain.outputs.version }}
+        components: rustfmt, clippy
+    - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2
+      id: msys2
+      with:
+        msystem: MINGW64
+        update: false
+        install: mingw-w64-x86_64-gcc
+    - name: 配置 Windows 原生构建工具
+      shell: pwsh
+      env:
+        MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        SELECTED_TOOLCHAIN: ${{ steps.rust.outputs.name }}
+      run: |
+        $bin = Join-Path $env:MSYS2_LOCATION 'mingw64\bin'
+        foreach ($tool in @('gcc.exe', 'ar.exe', 'windres.exe', 'objdump.exe')) {
+          if (-not (Test-Path -LiteralPath (Join-Path $bin $tool))) { throw "缺少构建工具：$tool" }
+        }
+        $bin >> $env:GITHUB_PATH
+        "RUSTUP_TOOLCHAIN=$env:SELECTED_TOOLCHAIN" >> $env:GITHUB_ENV
+        "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=$(Join-Path $bin 'gcc.exe')" >> $env:GITHUB_ENV
+        "CC=$(Join-Path $bin 'gcc.exe')" >> $env:GITHUB_ENV
+        "AR=$(Join-Path $bin 'ar.exe')" >> $env:GITHUB_ENV
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      with:
+        shared-key: windows-gnu
+        save-if: ${{ github.ref == 'refs/heads/main' }}

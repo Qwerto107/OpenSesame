@@ -1,0 +1,180 @@
+import { Palette } from "theme.slint";
+
+export component UiButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> danger;
+    in property <bool> enabled: true;
+    in property <length> font-size: 13px;
+    callback clicked();
+    height: 36px;
+    min-width: caption.preferred-width + 28px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: primary ? Palette.accent : Palette.control-border;
+    background: primary ? Palette.accent : touch.has-hover ? Palette.selected : Palette.button;
+    opacity: enabled ? 1 : 0.45;
+    accessible-role: button;
+    accessible-label: text;
+    caption := Text {
+        text: root.text;
+        color: root.primary ? #04202A : root.danger ? Palette.red : Palette.text;
+        font-size: root.font-size;
+        font-weight: root.primary ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+export component Field inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> mono: true;
+    in property <bool> enabled: true;
+    callback edited(string);
+    callback accepted();
+    height: 38px;
+    min-width: 40px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: input.has-focus ? Palette.accent : Palette.control-border;
+    background: Palette.inset;
+    opacity: enabled ? 1 : 0.5;
+    forward-focus: input;
+    if text == "": Text {
+        x: 12px; width: parent.width - 24px;
+        text: root.placeholder; font-size: 13px; color: Palette.muted;
+        vertical-alignment: center;
+    }
+    input := TextInput {
+        x: 12px; y: 1px; width: parent.width - 24px; height: parent.height - 2px;
+        text <=> root.text;
+        enabled: root.enabled;
+        single-line: true;
+        font-family: root.mono ? "JetBrains Mono" : "Microsoft YaHei";
+        font-size: 14px;
+        color: Palette.text;
+        selection-background-color: Palette.accent;
+        selection-foreground-color: #04202A;
+        vertical-alignment: center;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(); }
+    }
+}
+
+export component Toggle inherits Rectangle {
+    in property <bool> active;
+    in property <bool> enabled: true;
+    in property <string> label;
+    callback changed(bool);
+    width: 40px; height: 22px;
+    border-radius: 11px;
+    background: active ? Palette.accent : Palette.control-border;
+    accessible-role: checkbox;
+    accessible-label: label;
+    accessible-checked: active;
+    Rectangle {
+        x: root.active ? 21px : 3px; y: 3px; width: 16px; height: 16px;
+        border-radius: 8px; background: white;
+        animate x { duration: 120ms; }
+    }
+    TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { root.changed(!root.active); } }
+}
+
+export component TickBox inherits Rectangle {
+    in property <bool> checked;
+    in property <string> label;
+    callback toggled();
+    width: 18px; height: 18px;
+    border-radius: 5px; border-width: 1.5px;
+    border-color: checked ? Palette.accent : #6B7280;
+    background: checked ? Palette.accent : transparent;
+    accessible-role: checkbox;
+    accessible-label: label;
+    accessible-checked: checked;
+    if checked: Text {
+        text: "✓"; font-family: "Segoe UI Symbol"; font-size: 14px; font-weight: 700;
+        color: #04202A; horizontal-alignment: center; vertical-alignment: center;
+    }
+    TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+}
+
+export component Segments inherits Rectangle {
+    in property <[string]> labels;
+    in property <int> index;
+    callback selected(int);
+    height: 38px;
+    border-width: 1px; border-color: Palette.control-border; border-radius: 8px;
+    clip: true;
+    HorizontalLayout {
+        spacing: 0px; padding: 1px;
+        for label[i] in root.labels: Rectangle {
+            background: root.index == i ? Palette.segment : Palette.inset;
+            Text {
+                text: label; color: root.index == i ? Palette.accent-text : Palette.muted;
+                font-size: 13px; font-weight: root.index == i ? 600 : 400;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+            TouchArea { mouse-cursor: pointer; clicked => { root.selected(i); } }
+        }
+    }
+}
+
+export component Label inherits Text { font-size: 12px; color: Palette.muted; }
+export component Heading inherits Text { font-size: 14px; font-weight: 600; color: Palette.text; }
+export component Body inherits Text { font-size: 13px; color: Palette.text; }
+export component Card inherits Rectangle { background: Palette.card; border-color: Palette.border; border-width: 1px; border-radius: 12px; }
+
+export component ProtocolTag inherits Rectangle {
+    in property <string> text;
+    in property <bool> udp;
+    width: tag.preferred-width + 12px; height: 20px;
+    border-radius: 5px;
+    background: udp ? Palette.amber-bg : Palette.selected;
+    tag := Text {
+        text: root.text; font-size: 11px; font-weight: 600;
+        color: root.udp ? Palette.amber : Palette.accent-text;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+}
+
+export component StatusIcon inherits Rectangle {
+    in property <int> kind;
+    in property <bool> large;
+    out property <color> tone: kind == 2 ? Palette.green : kind == 1 ? Palette.accent : kind == 3 ? Palette.amber : kind == 4 ? Palette.red : Palette.muted;
+    width: large ? 40px : 14px; height: self.width;
+    background: transparent;
+    if root.large && root.kind == 2: Rectangle {
+        x: parent.width * 0.05; y: self.x;
+        width: parent.width * 0.9; height: self.width;
+        border-radius: self.width / 2; background: Palette.green-bg;
+    }
+    Image {
+        source: root.large ? @image-url("../assets/status/circle-large.svg") : @image-url("../assets/status/circle.svg");
+        colorize: root.tone;
+        width: parent.width; height: parent.height;
+    }
+    Image {
+        source: root.kind == 2 ? (root.large ? @image-url("../assets/status/check-large.svg") : @image-url("../assets/status/check.svg")) : root.kind == 3 || root.kind == 4 ? (root.large ? @image-url("../assets/status/cross-large.svg") : @image-url("../assets/status/cross.svg")) : root.kind == 1 ? @image-url("../assets/status/checking.svg") : (root.large ? @image-url("../assets/status/unknown-large.svg") : @image-url("../assets/status/unknown.svg"));
+        colorize: root.tone;
+        width: parent.width; height: parent.height;
+    }
+}
+
+export component ErrorNotice inherits Rectangle {
+    in property <string> text;
+    horizontal-stretch: 1; vertical-stretch: 0;
+    height: max(42px, caption.preferred-height + 20px);
+    background: Palette.dark ? #2A1820 : #FEF2F2;
+    border-color: Palette.dark ? #743240 : #FECACA;
+    border-width: 1px; border-radius: 8px;
+    accessible-role: AccessibleRole.text; accessible-label: text;
+    StatusIcon { x: 12px; y: (parent.height - self.height) / 2; kind: 4; width: 16px; }
+    caption := Text {
+        x: 38px; y: 10px; width: parent.width - 50px;
+        height: self.preferred-height; text: root.text;
+        color: Palette.red; font-size: 12px; wrap: word-wrap;
+    }
+}
+

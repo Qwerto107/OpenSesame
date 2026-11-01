@@ -1,0 +1,7 @@
+/target/
+/.tools/
+/.design/
+/dist/
+/artifacts/
+*.pdb
+

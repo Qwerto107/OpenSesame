@@ -1,0 +1,550 @@
+import { ScrollView, ComboBox, Palette as NativePalette } from "std-widgets.slint";
+import { Palette } from "theme.slint";
+import { UiButton, Field, Toggle, TickBox, Segments, Label, Heading, Body, Card, ProtocolTag, StatusIcon, ErrorNotice } from "controls.slint";
+import "../assets/fonts/Inter.ttf";
+import "../assets/fonts/JetBrainsMono.ttf";
+
+export { Palette }
+export struct ServerRow { id: string, name: string, host: string, service: string, udp: bool, checked: bool, selected: bool, status: string, kind: int }
+export struct StepRow { port: string, udp: bool }
+export struct BatchRow { name: string, host: string, stage: string, status: string, progress: float, kind: int }
+
+component StepEditor inherits Rectangle {
+    in property <[StepRow]> steps;
+    callback port-changed(int, string);
+    callback protocol-changed(int, bool);
+    callback move-step(int, int);
+    callback remove-step(int);
+    background: transparent;
+    height: root.steps.length * 48px - (root.steps.length > 0 ? 10px : 0px);
+    VerticalLayout {
+        spacing: 10px;
+        for step[i] in root.steps: HorizontalLayout {
+            height: 38px; spacing: 10px;
+            Label { width: 24px; text: i + 1; font-family: "JetBrains Mono"; horizontal-alignment: center; vertical-alignment: center; }
+            Field { text: step.port; edited(value) => { root.port-changed(i, value); } }
+            Segments { width: 130px; labels: ["TCP", "UDP"]; index: step.udp ? 1 : 0; selected(value) => { root.protocol-changed(i, value == 1); } }
+            HorizontalLayout {
+                width: 104px; spacing: 4px;
+                UiButton { width: 32px; height: 32px; text: "↑"; enabled: i > 0; clicked => { root.move-step(i, -1); } }
+                UiButton { width: 32px; height: 32px; text: "↓"; enabled: i + 1 < root.steps.length; clicked => { root.move-step(i, 1); } }
+                UiButton { width: 32px; height: 32px; text: "×"; clicked => { root.remove-step(i); } }
+            }
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "OpenSesame";
+    icon: @image-url("../assets/icon.svg");
+    preferred-width: 1120px; preferred-height: 720px;
+    min-width: 1000px; min-height: 680px;
+    default-font-family: "Microsoft YaHei"; default-font-size: 13px;
+    background: Palette.canvas;
+    property <bool> dark-ui: Palette.dark;
+    init => { NativePalette.color-scheme = root.dark-ui ? ColorScheme.dark : ColorScheme.light; }
+    changed dark-ui => { NativePalette.color-scheme = root.dark-ui ? ColorScheme.dark : ColorScheme.light; }
+
+    in property <[ServerRow]> servers;
+    in property <[StepRow]> sequence;
+    in property <[BatchRow]> batch-rows;
+    in property <int> selected-count;
+    in property <bool> has-current;
+    in property <string> current-name;
+    in property <string> current-host;
+    in property <string> knock-stage: @tr("Not knocked yet");
+    in property <bool> knocking;
+    in property <float> knock-progress;
+    in property <string> port-state: @tr("Not checked");
+    in property <string> port-detail;
+    in property <int> port-kind;
+    in property <string> last-check: "—";
+    in property <string> next-check: "—";
+    in property <string> check-cycle: @tr("Every 30 s");
+    in-out property <bool> auto-check: true;
+    in property <string> activity;
+    in property <string> banner;
+    in-out property <bool> batch-view;
+    in property <bool> batch-running;
+    in property <string> batch-counter;
+    in property <string> batch-summary;
+    in-out property <bool> show-batch-summary: true;
+
+    in-out property <int> dialog;
+    in-out property <bool> editing;
+    in-out property <string> form-name;
+    in-out property <string> form-host;
+    in-out property <[StepRow]> form-steps;
+    in-out property <string> form-gap: "200";
+    in-out property <string> form-limit: "10";
+    in-out property <string> form-port: "22";
+    in-out property <bool> form-udp;
+    in-out property <string> form-check-interval: "30";
+    in-out property <string> form-check-timeout: "3";
+    in-out property <bool> update-sequence: true;
+    in-out property <bool> update-service;
+    in-out property <string> form-error;
+    in property <[string]> batch-targets;
+    in-out property <bool> settings-knock;
+    in-out property <bool> settings-check: true;
+    in-out property <bool> settings-all: true;
+    in-out property <string> settings-interval: "30";
+    in-out property <string> settings-timeout: "3";
+    in-out property <int> settings-theme;
+    in property <[string]> language-labels;
+    in-out property <int> settings-language;
+
+    callback select-server(string);
+    callback toggle-server(string);
+    callback add-server();
+    callback edit-server();
+    callback delete-server();
+    callback open-server();
+    callback open-batch();
+    callback edit-batch();
+    callback open-settings();
+    callback save-server();
+    callback save-batch();
+    callback save-settings();
+    callback toggle-auto(bool);
+    callback add-step();
+    callback step-port(int, string);
+    callback step-protocol(int, bool);
+    callback move-step(int, int);
+    callback remove-step(int);
+
+    VerticalLayout {
+        spacing: 0px;
+        Rectangle {
+            height: 44px; background: Palette.titlebar;
+            HorizontalLayout {
+                padding-left: 14px; padding-right: 14px; spacing: 10px;
+                Rectangle {
+                    width: 20px;
+                    Rectangle {
+                        y: (parent.height - 20px) / 2; width: 20px; height: 20px; border-radius: 5px; border-width: 1.6px; border-color: Palette.accent;
+                        Rectangle { x: 7px; y: 7px; width: 6px; height: 6px; border-radius: 3px; background: Palette.accent; }
+                    }
+                }
+                Heading { text: "OpenSesame"; font-family: "Inter"; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                VerticalLayout { alignment: center; UiButton { text: @tr("Settings"); height: 30px; clicked => { root.open-settings(); } } }
+            }
+            Rectangle { y: parent.height - 1px; height: 1px; background: Palette.border; }
+        }
+        HorizontalLayout {
+            spacing: 0px;
+            Rectangle {
+                width: 320px; background: Palette.sidebar;
+                VerticalLayout {
+                    spacing: 0px;
+                    HorizontalLayout {
+                        padding-left: 16px; padding-right: 16px; padding-top: 18px; padding-bottom: 12px; height: 62px;
+                        Heading { text: @tr("Servers"); vertical-alignment: center; }
+                        Label { text: " · " + root.servers.length; vertical-alignment: center; }
+                        Rectangle { horizontal-stretch: 1; }
+                        UiButton { text: @tr("+ Add"); primary: true; height: 32px; clicked => { root.add-server(); } }
+                    }
+                    ScrollView {
+                        horizontal-stretch: 1; vertical-stretch: 1;
+                        content-width: self.width;
+                        VerticalLayout {
+                            padding-left: 12px; padding-right: 12px; spacing: 8px;
+                            if root.servers.length == 0: Rectangle {
+                                height: 60px; border-radius: 10px; border-width: 1px; border-color: Palette.control-border;
+                                Label { text: @tr("No servers"); horizontal-alignment: center; vertical-alignment: center; }
+                            }
+                            for server in root.servers: Rectangle {
+                                height: 74px; border-radius: 10px; border-width: 1px;
+                                border-color: server.selected ? Palette.accent : Palette.border;
+                                background: server.selected ? Palette.selected : Palette.card;
+                                TouchArea { mouse-cursor: pointer; clicked => { root.select-server(server.id); } }
+                                HorizontalLayout {
+                                    padding: 12px; spacing: 12px;
+                                    VerticalLayout { width: 18px; alignment: center; TickBox { checked: server.checked; label: @tr("Select {0}", server.name); toggled => { root.toggle-server(server.id); } } }
+                                    VerticalLayout {
+                                        spacing: 2px; horizontal-stretch: 1;
+                                        Heading { text: server.name; overflow: elide; }
+                                        Label { text: server.host; font-family: "JetBrains Mono"; overflow: elide; }
+                                    }
+                                    VerticalLayout {
+                                        spacing: 5px; alignment: end;
+                                        ProtocolTag { text: server.service; udp: server.udp; }
+                                        HorizontalLayout {
+                                            spacing: 5px; alignment: end;
+                                            StatusIcon { kind: server.kind; }
+                                            Text { text: server.status; font-size: 12px; color: server.kind == 2 ? Palette.green : server.kind == 1 ? Palette.accent : server.kind == 3 ? Palette.amber : server.kind == 4 ? Palette.red : Palette.muted; }
+                                        }
+                                    }
+                                }
+                            }
+                            Rectangle { vertical-stretch: 1; }
+                        }
+                    }
+                    Rectangle {
+                        height: 65px;
+                        Rectangle { y: 0px; height: 1px; background: Palette.border; }
+                        HorizontalLayout {
+                            padding-left: 16px; padding-right: 16px; spacing: 6px;
+                            Label { text: @tr("Selected: {0}", root.selected-count); vertical-alignment: center; }
+                            Rectangle { horizontal-stretch: 1; }
+                            VerticalLayout { alignment: center; UiButton { text: @tr("Batch edit"); enabled: root.selected-count > 0 && !root.batch-running; clicked => { root.edit-batch(); } } }
+                            VerticalLayout { alignment: center; UiButton { text: @tr("Batch knock"); primary: true; enabled: root.selected-count > 0 && !root.batch-running; clicked => { root.open-batch(); } } }
+                        }
+                    }
+                }
+                Rectangle { x: parent.width - 1px; width: 1px; background: Palette.border; }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+                if !root.has-current && !root.batch-view: VerticalLayout {
+                    padding: 40px; spacing: 16px; alignment: center;
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 84px; height: 84px;
+                            Rectangle {
+                                x: 4px; y: 4px; width: 76px; height: 76px; border-radius: 22px;
+                                background: Palette.selected; border-color: Palette.accent; border-width: 2px;
+                                Rectangle { x: 28px; y: 25px; width: 18px; height: 18px; border-radius: 9px; border-color: Palette.accent; border-width: 3px; }
+                                Rectangle { x: 36px; y: 42px; width: 3px; height: 15px; border-radius: 1px; background: Palette.accent; }
+                            }
+                        }
+                    }
+                    Text { text: @tr("No servers yet"); color: Palette.text; font-size: 26px; font-weight: 700; horizontal-alignment: center; }
+                    Text { text: @tr("Add a server, set its knock sequence and service port,\nthen knock and monitor its connection status."); color: Palette.muted; font-size: 14px; horizontal-alignment: center; }
+                    HorizontalLayout { alignment: center; UiButton { text: @tr("+ Add server"); primary: true; height: 46px; font-size: 16px; clicked => { root.add-server(); } } }
+                    HorizontalLayout {
+                        spacing: 8px; alignment: center;
+                        for label in [@tr("1  Enter address"), @tr("2  Set sequence"), @tr("3  Set service port")]: Rectangle {
+                            width: caption.preferred-width + 20px; height: 30px; border-radius: 8px; background: Palette.inset; border-width: 1px; border-color: Palette.control-border;
+                            caption := Body { text: label; horizontal-alignment: center; vertical-alignment: center; }
+                        }
+                    }
+                }
+                if root.has-current && !root.batch-view: VerticalLayout {
+                    padding-left: 32px; padding-right: 32px; padding-top: 28px; padding-bottom: 28px; spacing: 20px;
+                    HorizontalLayout {
+                        height: 57px; spacing: 6px;
+                        VerticalLayout {
+                            spacing: 4px;
+                            Text { text: root.current-name; font-size: 26px; font-weight: 700; color: Palette.text; overflow: elide; }
+                            Label { text: root.current-host; font-size: 13px; font-family: "JetBrains Mono"; overflow: elide; }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        UiButton { text: @tr("Edit"); enabled: !root.knocking; clicked => { root.edit-server(); } }
+                        UiButton { text: @tr("Delete"); danger: true; enabled: !root.knocking; clicked => { root.dialog = 4; } }
+                    }
+                    Card {
+                        height: 176px;
+                        VerticalLayout {
+                            padding-top: 20px; padding-bottom: 20px; padding-left: 22px; padding-right: 22px; spacing: 0px;
+                            HorizontalLayout {
+                                height: 46px;
+                                VerticalLayout { spacing: 4px; Heading { text: @tr("Knock sequence"); } Label { text: root.knock-stage; font-size: 13px; } }
+                                Rectangle { horizontal-stretch: 1; }
+                                UiButton { text: root.knocking ? @tr("Knocking…") : @tr("Knock"); primary: true; enabled: !root.knocking; height: 46px; width: 100px; font-size: 16px; border-radius: 10px; clicked => { root.open-server(); } }
+                            }
+                            Rectangle { height: 16px; }
+                            Flickable {
+                                height: 30px;
+                                content-width: root.sequence.length * 110px; content-height: 30px;
+                                HorizontalLayout {
+                                    width: root.sequence.length * 110px; height: 30px; spacing: 8px; alignment: start;
+                                    for step[i] in root.sequence: HorizontalLayout {
+                                        spacing: 8px;
+                                        Rectangle {
+                                            width: number.preferred-width + 56px; height: 30px; border-radius: 8px; border-color: Palette.control-border; border-width: 1px; background: Palette.inset;
+                                            HorizontalLayout { padding-left: 10px; padding-right: 8px; spacing: 6px;
+                                                number := Body { text: step.port; font-family: "JetBrains Mono"; vertical-alignment: center; }
+                                                VerticalLayout { alignment: center; ProtocolTag { text: step.udp ? "UDP" : "TCP"; udp: step.udp; } }
+                                            }
+                                        }
+                                        if i + 1 < root.sequence.length: Label { text: "→"; vertical-alignment: center; }
+                                    }
+                                }
+                            }
+                            Rectangle { height: 16px; }
+                            Rectangle { height: 4px; border-radius: 2px; background: Palette.border; Rectangle { x: 0px; y: 0px; width: parent.width * root.knock-progress; border-radius: 2px; background: Palette.accent; } }
+                            Rectangle { height: 10px; }
+                            Label { text: @tr("Sending a sequence does not confirm access. Check the service port status below."); }
+                        }
+                    }
+                    Card {
+                        height: 224px;
+                        VerticalLayout {
+                            padding-top: 20px; padding-bottom: 20px; padding-left: 22px; padding-right: 22px; spacing: 0px;
+                            HorizontalLayout {
+                                height: 22px; Heading { text: @tr("Service port status"); vertical-alignment: center; }
+                                Rectangle { horizontal-stretch: 1; }
+                                Label { text: @tr("Auto-check"); font-size: 13px; vertical-alignment: center; }
+                                Rectangle { width: 10px; }
+                                Toggle { active: root.auto-check; label: @tr("Auto-check"); changed(value) => { root.toggle-auto(value); } }
+                            }
+                            Rectangle { height: 16px; }
+                            HorizontalLayout {
+                                height: 48px; spacing: 14px;
+                                StatusIcon { kind: root.port-kind; large: true; }
+                                VerticalLayout {
+                                    spacing: 2px;
+                                    Text { text: root.port-state; font-size: 20px; font-weight: 700; color: root.port-kind == 2 ? Palette.green : root.port-kind == 1 ? Palette.accent : root.port-kind == 3 ? Palette.amber : root.port-kind == 4 ? Palette.red : Palette.muted; }
+                                    Label { text: root.port-detail; font-size: 13px; overflow: elide; }
+                                }
+                            }
+                            Rectangle { height: 18px; }
+                            HorizontalLayout {
+                                height: 62px; spacing: 12px;
+                                for metric in [{ label: @tr("Last checked"), value: root.last-check }, { label: @tr("Next check"), value: root.next-check }, { label: @tr("Check interval"), value: root.check-cycle }]: Rectangle {
+                                    background: Palette.inset; border-radius: 10px;
+                                    VerticalLayout { padding-left: 14px; padding-right: 14px; padding-top: 12px; padding-bottom: 10px; spacing: 4px;
+                                        Label { text: metric.label; }
+                                        Body { text: metric.value; font-size: 15px; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Label { text: root.activity; font-size: 13px; wrap: word-wrap; }
+                    Rectangle { vertical-stretch: 1; }
+                }
+                if root.batch-view: VerticalLayout {
+                    padding-left: 32px; padding-right: 32px; padding-top: 28px; padding-bottom: 28px; spacing: 16px;
+                    HorizontalLayout {
+                        height: 57px;
+                        VerticalLayout { spacing: 4px; Text { text: @tr("Batch knock"); color: Palette.text; font-size: 26px; font-weight: 700; } Label { text: @tr("Selected: {0} · Checks run after knocking", root.batch-rows.length); font-size: 13px; } }
+                        Label { text: root.batch-counter; font-size: 15px; vertical-alignment: center; horizontal-alignment: right; }
+                    }
+                    if !root.batch-running && root.show-batch-summary: Card {
+                        height: 82px; border-color: Palette.green; background: Palette.green-bg;
+                        HorizontalLayout { padding-left: 20px; padding-right: 20px; spacing: 14px;
+                            VerticalLayout { width: 32px; alignment: center; StatusIcon { kind: 2; large: true; width: 32px; } }
+                            VerticalLayout { spacing: 3px; alignment: center; Heading { text: @tr("Batch knock completed"); font-size: 16px; } Label { text: root.batch-summary; font-size: 13px; wrap: word-wrap; } }
+                            VerticalLayout { width: 32px; alignment: center; UiButton { text: "×"; width: 32px; height: 32px; clicked => { root.show-batch-summary = false; } } }
+                        }
+                    }
+                    ScrollView {
+                        content-width: self.width;
+                        VerticalLayout {
+                            spacing: 16px;
+                            for result in root.batch-rows: Card {
+                                height: 112px;
+                                VerticalLayout { padding-top: 16px; padding-bottom: 16px; padding-left: 20px; padding-right: 20px; spacing: 12px;
+                                    HorizontalLayout {
+                                        height: 36px;
+                                        VerticalLayout { spacing: 2px; Heading { text: result.name; font-size: 15px; } Label { text: result.host; font-family: "JetBrains Mono"; } }
+                                        Body { text: result.stage; color: result.progress >= 1 ? Palette.green : Palette.text; vertical-alignment: center; horizontal-alignment: right; }
+                                    }
+                                    Rectangle { height: 4px; background: Palette.border; border-radius: 2px; Rectangle { x: 0px; y: 0px; width: parent.width * result.progress; background: Palette.accent; border-radius: 2px; } }
+                                    HorizontalLayout { height: 16px; spacing: 5px; StatusIcon { kind: result.kind; } Body { text: result.status; font-size: 12px; color: result.kind == 2 ? Palette.green : result.kind == 1 ? Palette.accent : result.kind == 3 ? Palette.amber : result.kind == 4 ? Palette.red : Palette.muted; overflow: elide; } }
+                                }
+                            }
+                            Rectangle { vertical-stretch: 1; }
+                        }
+                    }
+                    if !root.batch-running: HorizontalLayout { alignment: end; UiButton { text: @tr("Back to current server"); clicked => { root.batch-view = false; } } }
+                }
+                if root.banner != "": Rectangle {
+                    x: 24px; y: parent.height - self.height - 12px; width: parent.width - 48px;
+                    height: 52px; background: Palette.amber-bg; border-color: Palette.amber; border-width: 1px; border-radius: 8px;
+                    Text { x: 12px; width: parent.width - 24px; text: root.banner; color: Palette.amber; wrap: word-wrap; vertical-alignment: center; font-size: 12px; }
+                }
+            }
+        }
+    }
+
+    // 弹窗共用主窗口内的遮罩，保持设计稿中的层级与尺寸。
+    if root.dialog > 0: Rectangle {
+        background: #05080E9E;
+        TouchArea { }
+    }
+    if root.dialog == 1 || root.dialog == 2: Rectangle {
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        width: 640px; height: min(640px, parent.height - 40px);
+        background: root.dialog == 2 ? Palette.canvas : Palette.sidebar; border-width: 1px; border-color: Palette.control-border; border-radius: 14px;
+        VerticalLayout {
+            spacing: 0px;
+            if root.dialog == 1: HorizontalLayout {
+                height: 64px; padding-left: 24px; padding-right: 24px;
+                Heading { text: root.dialog == 2 ? @tr("Batch settings") : root.editing ? @tr("Edit server") : @tr("Add server"); font-size: 18px; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                VerticalLayout { width: 32px; alignment: center; UiButton { text: "×"; width: 32px; height: 32px; clicked => { root.dialog = 0; } } }
+            }
+            if root.dialog == 1: Rectangle { height: 1px; background: Palette.border; }
+            ScrollView {
+                content-width: self.width;
+                VerticalLayout {
+                    padding-top: root.dialog == 2 ? 32px : 20px; padding-bottom: 20px;
+                    padding-left: root.dialog == 2 ? 32px : 24px; padding-right: root.dialog == 2 ? 32px : 24px;
+                    spacing: root.dialog == 2 ? 20px : 16px;
+                    alignment: start;
+                    if root.dialog == 2: VerticalLayout {
+                        spacing: 6px; alignment: start; vertical-stretch: 0;
+                        Heading { text: @tr("Batch settings"); font-size: 22px; height: 29px; }
+                        Label { text: @tr("Apply to {0} selected servers. Names and addresses stay unchanged.", root.selected-count); font-size: 13px; }
+                        Rectangle { height: 8px; vertical-stretch: 0; }
+                        Flickable {
+                            height: 30px; content-height: 30px; content-width: targets.preferred-width;
+                            targets := HorizontalLayout {
+                                width: self.preferred-width; height: 30px; spacing: 8px;
+                                for name in root.batch-targets: Rectangle {
+                                    width: target-name.preferred-width + 20px; height: 30px;
+                                    background: Palette.inset; border-color: Palette.control-border; border-width: 1px; border-radius: 8px;
+                                    target-name := Body { text: name; vertical-alignment: center; horizontal-alignment: center; }
+                                }
+                            }
+                        }
+                    }
+                    if root.dialog == 1: Card {
+                        height: 134px;
+                        VerticalLayout { padding-top: 18px; padding-bottom: 18px; padding-left: 20px; padding-right: 20px; spacing: 14px;
+                            Heading { text: @tr("Basic information"); }
+                            HorizontalLayout { spacing: 14px;
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Display name"); } Field { text <=> root.form-name; mono: false; placeholder: @tr("e.g. Home NAS"); } }
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Server address"); } Field { text <=> root.form-host; placeholder: @tr("IP address or hostname"); } }
+                            }
+                        }
+                    }
+                    Card {
+                        height: root.dialog == 2 && !root.update-sequence ? 78px : root.form-steps.length * 48px + (root.dialog == 1 ? 144px : 98px);
+                        border-color: root.dialog == 2 && root.update-sequence ? Palette.accent : Palette.border;
+                        VerticalLayout { padding-top: 18px; padding-bottom: 18px; padding-left: 20px; padding-right: 20px; spacing: 14px;
+                            HorizontalLayout {
+                                height: 30px;
+                                Heading { text: root.dialog == 2 ? @tr("Update knock sequence") : @tr("Knock sequence"); vertical-alignment: center; }
+                                Rectangle { horizontal-stretch: 1; }
+                                if root.dialog == 1 || root.update-sequence: UiButton { text: @tr("+ Add step"); height: 30px; clicked => { root.add-step(); } }
+                                if root.dialog == 2: Toggle { active: root.update-sequence; changed(value) => { root.update-sequence = value; } }
+                            }
+                            if root.dialog == 1 || root.update-sequence: StepEditor {
+                                steps: root.form-steps;
+                                port-changed(index, value) => { root.step-port(index, value); }
+                                protocol-changed(index, udp) => { root.step-protocol(index, udp); }
+                                move-step(index, direction) => { root.move-step(index, direction); }
+                                remove-step(index) => { root.remove-step(index); }
+                            }
+                            if root.dialog == 1: HorizontalLayout { spacing: 14px;
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Step interval (ms)"); } Field { text <=> root.form-gap; } }
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Sequence timeout (s)"); } Field { text <=> root.form-limit; } }
+                            }
+                            if root.dialog == 2 && root.update-sequence: Label { text: @tr("Replace the sequence. Each server keeps its step interval and timeout."); wrap: word-wrap; }
+                        }
+                    }
+                    Card {
+                        height: root.dialog == 1 ? 304px : root.update-service ? 154px : 92px;
+                        border-color: root.dialog == 2 && root.update-service ? Palette.accent : Palette.border;
+                        VerticalLayout { padding-top: 18px; padding-bottom: 18px; padding-left: 20px; padding-right: 20px; spacing: 14px;
+                            HorizontalLayout {
+                                height: 22px; Heading { text: root.dialog == 2 ? @tr("Update service port") : @tr("Service check"); }
+                                if root.dialog == 2: Toggle { active: root.update-service; changed(value) => { root.update-service = value; } }
+                            }
+                            if root.dialog == 1 || root.update-service: HorizontalLayout { spacing: 14px;
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Service port"); } Field { text <=> root.form-port; } }
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Protocol"); } Segments { labels: ["TCP", "UDP"]; index: root.form-udp ? 1 : 0; selected(index) => { root.form-udp = index == 1; } } }
+                            }
+                            if root.dialog == 1: HorizontalLayout { spacing: 14px;
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Check interval (s)"); } Field { text <=> root.form-check-interval; } }
+                                VerticalLayout { spacing: 6px; Label { text: @tr("Check timeout (s)"); } Field { text <=> root.form-check-timeout; } }
+                            }
+                            if root.dialog == 1: Rectangle {
+                                height: 78px; border-width: 1px; border-color: Palette.control-border; border-radius: 10px;
+                                VerticalLayout { padding-left: 14px; padding-right: 14px; padding-top: 10px; padding-bottom: 10px; spacing: 6px;
+                                    Heading { text: root.form-udp ? @tr("UDP probe") : @tr("UDP probe (available for UDP)"); color: Palette.muted; font-size: 13px; }
+                                    Label { text: @tr("Reserved: text/HEX payload and response matching. No response means Unknown, not Closed."); wrap: word-wrap; }
+                                }
+                            }
+                            if root.dialog == 2 && !root.update-service: Label { text: @tr("Disabled: keep each server's existing port and protocol."); wrap: word-wrap; }
+                        }
+                    }
+                }
+            }
+            if root.form-error != "": VerticalLayout {
+                padding-left: root.dialog == 2 ? 32px : 24px;
+                padding-right: root.dialog == 2 ? 32px : 24px;
+                padding-top: 8px; padding-bottom: 12px;
+                ErrorNotice { text: root.form-error; }
+            }
+            if root.dialog == 1: Rectangle { height: 1px; background: Palette.border; }
+            HorizontalLayout {
+                height: root.dialog == 2 ? 80px : 72px;
+                padding-bottom: root.dialog == 2 ? 14px : 0px;
+                padding-right: root.dialog == 2 ? 32px : 24px; alignment: end; spacing: 6px;
+                VerticalLayout { alignment: center; UiButton { text: @tr("Cancel"); clicked => { root.dialog = 0; } } }
+                VerticalLayout { alignment: center; UiButton { text: root.dialog == 2 ? @tr("Apply to {0}", root.selected-count) : @tr("Save"); primary: true; enabled: root.dialog == 1 || root.update-sequence || root.update-service;
+                    clicked => { if root.dialog == 2 { root.save-batch(); } else { root.save-server(); } }
+                } }
+            }
+        }
+    }
+
+    if root.dialog == 3: Rectangle {
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+        width: 560px; height: 640px; background: Palette.canvas; border-color: Palette.border; border-width: 1px; border-radius: 14px;
+        VerticalLayout {
+            padding-top: 28px; padding-bottom: 28px; padding-left: 32px; padding-right: 32px; spacing: 12px;
+            HorizontalLayout {
+                height: 38px; spacing: 10px;
+                Heading { text: @tr("Settings"); font-size: 22px; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                Label { text: @tr("Language"); vertical-alignment: center; }
+                ComboBox { model: root.language-labels; current-index <=> root.settings-language; width: 180px; horizontal-stretch: 0; }
+            }
+            ScrollView {
+                content-width: self.width;
+                VerticalLayout {
+                    spacing: 12px;
+            Card {
+                height: max(100px, startup-content.preferred-height);
+                startup-content := VerticalLayout { padding-top: 14px; padding-bottom: 14px; padding-left: 18px; padding-right: 18px; spacing: 14px;
+                    Heading { text: @tr("Startup"); }
+                    HorizontalLayout { spacing: 20px;
+                        VerticalLayout { spacing: 3px; Body { text: @tr("Knock on startup"); font-size: 14px; } Label { text: @tr("Knock on the restored current server when the app starts."); wrap: word-wrap; } }
+                        Toggle { active: root.settings-knock; changed(value) => { root.settings-knock = value; } }
+                    }
+                }
+            }
+            Card {
+                height: 250px;
+                VerticalLayout { padding-top: 14px; padding-bottom: 14px; padding-left: 18px; padding-right: 18px; spacing: 14px;
+                    Heading { text: @tr("Port monitoring"); }
+                    HorizontalLayout { spacing: 20px;
+                        VerticalLayout { spacing: 3px; Body { text: @tr("Check ports automatically"); font-size: 14px; } Label { text: @tr("Check at regular intervals and show each server's status in the list."); wrap: word-wrap; } }
+                        Toggle { active: root.settings-check; changed(value) => { root.settings-check = value; } }
+                    }
+                    VerticalLayout { spacing: 6px; Label { text: @tr("Monitoring scope"); } Segments { labels: [@tr("All servers"), @tr("Current server only")]; index: root.settings-all ? 0 : 1; selected(index) => { root.settings-all = index == 0; } } }
+                    HorizontalLayout { spacing: 14px;
+                        VerticalLayout { spacing: 6px; Label { text: @tr("Check interval (s)"); } Field { text <=> root.settings-interval; } }
+                        VerticalLayout { spacing: 6px; Label { text: @tr("Check timeout (s)"); } Field { text <=> root.settings-timeout; } }
+                    }
+                }
+            }
+            Card {
+                height: 100px;
+                VerticalLayout { padding-top: 14px; padding-bottom: 14px; padding-left: 18px; padding-right: 18px; spacing: 14px;
+                    Heading { text: @tr("Appearance"); }
+                    Segments { labels: [@tr("Follow system"), @tr("Dark"), @tr("Light")]; index: root.settings-theme; selected(index) => { root.settings-theme = index; } }
+                }
+            }
+                }
+            }
+            Label { text: @tr("Config file  {0}", "%APPDATA%\\OpenSesame\\config.json"); }
+            if root.form-error != "": ErrorNotice { text: root.form-error; }
+            HorizontalLayout { height: 36px; alignment: end; spacing: 10px;
+                UiButton { text: @tr("Cancel"); clicked => { root.dialog = 0; } }
+                UiButton { text: @tr("Save"); primary: true; clicked => { root.save-settings(); } }
+            }
+        }
+    }
+
+    if root.dialog == 4: Card {
+        x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; width: 420px; height: 190px;
+        VerticalLayout { padding: 24px; spacing: 16px;
+            Heading { text: @tr("Delete server"); font-size: 18px; }
+            Body { text: @tr("Delete {0} and its local settings?", root.current-name); wrap: word-wrap; }
+            HorizontalLayout { alignment: end; spacing: 8px;
+                UiButton { text: @tr("Cancel"); clicked => { root.dialog = 0; } }
+                UiButton { text: @tr("Delete"); danger: true; clicked => { root.delete-server(); } }
+            }
+        }
+    }
+}
+

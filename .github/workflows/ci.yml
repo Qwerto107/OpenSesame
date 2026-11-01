@@ -1,0 +1,138 @@
+name: 构建、检查与发布
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths:
+      ["src/**", "ui/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "docs/binary.md", "docs/releasing.md"]
+  pull_request:
+    paths:
+      ["src/**", "ui/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "docs/binary.md", "docs/releasing.md"]
+  workflow_dispatch:
+    inputs:
+      full_checks:
+        description: "运行依赖审计、隔离界面操作、双语预览及发行程序启动检查"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 日常检查保留最新提交；版本发布不能中途取消。
+concurrency:
+  group: opensesame-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -C link-arg=-Wl,--no-insert-timestamp
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  rust:
+    name: Rust 与界面检查
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: 校验版本、格式与静态问题
+        run: |
+          if ($env:GITHUB_REF.StartsWith('refs/tags/')) {
+            $tag = $env:GITHUB_REF_NAME
+            if ($tag.Length -gt 100 -or $tag -cnotmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$') { throw '版本标签格式无效' }
+            $metadata = (& cargo metadata --locked --no-deps --format-version 1 | ConvertFrom-Json)
+            if ($LASTEXITCODE -ne 0) { throw '无法读取 Cargo 元数据' }
+            $package = $metadata.packages | Where-Object name -EQ 'opensesame'
+            if ($package.version -cne $tag.Substring(1)) { throw '标签与 Cargo.toml 版本不一致' }
+          }
+          ./scripts/build.ps1 -Action fmt
+          ./scripts/build.ps1 -Action lint
+      - name: 单元测试
+        run: ./scripts/build.ps1 -Action test
+      - name: 依赖漏洞检查
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks)
+        run: |
+          cargo install cargo-audit --version 0.22.2 --locked --no-default-features
+          if ($LASTEXITCODE -ne 0) { throw '审计工具安装失败' }
+          cargo audit --file Cargo.lock
+          if ($LASTEXITCODE -ne 0) { throw '依赖漏洞检查失败' }
+      - name: 隔离界面与本机网络验证
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks)
+        run: |
+          ./scripts/build.ps1 -Action qa
+          ./target/debug/opensesame.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw '界面操作验证失败' }
+      - name: 生成双语界面预览
+        if: github.event_name == 'workflow_dispatch' && inputs.full_checks
+        run: |
+          foreach ($language in @('zh-CN', 'en')) {
+            foreach ($scene in @('main-light', 'main-dark', 'settings-light', 'editor-error-light')) {
+              ./target/debug/opensesame.exe --screenshot "artifacts/$language-$scene.png" --scene $scene --language $language
+              if ($LASTEXITCODE -ne 0) { throw '界面预览生成失败' }
+            }
+          }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: github.event_name == 'workflow_dispatch' && inputs.full_checks
+        with:
+          name: opensesame-ui-preview
+          path: artifacts/*.png
+          if-no-files-found: error
+          retention-days: 7
+
+  binaries:
+    name: 二进制构建（windows-amd64）
+    needs: rust
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust
+      - name: 构建、打包与生成校验文件
+        run: ./.github/scripts/package-binary.ps1
+      - name: 检查发行程序
+        env:
+          SMOKE_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.full_checks }}
+        run: ./.github/scripts/check-binary.ps1 -SmokeTest:($env:SMOKE_TEST -eq 'true')
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: opensesame-binaries-windows-amd64
+          path: dist/release/*.zip*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  release:
+    name: 发布版本二进制附件
+    needs: binaries
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: opensesame-binaries-*
+          merge-multiple: true
+          path: release-assets/
+      - name: 上传、核对附件并公开 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: bash .github/scripts/publish-release.sh
