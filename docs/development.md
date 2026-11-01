@@ -41,7 +41,7 @@ $env:AR = 'C:\msys64\mingw64\bin\ar.exe'
 需要 Rust 1.99.1、Git、Bash 和 Python 3.9 以上。macOS 需 Xcode Command Line Tools，打包使用系统的 `sips`、`iconutil` 和 `codesign`。Linux 安装以下依赖：
 
 ```sh
-sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev fonts-noto-cjk xvfb xauth
+sudo apt install build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-xcb-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev fonts-noto-cjk
 bash scripts/build.sh fmt
 bash scripts/build.sh lint
 bash scripts/build.sh test
@@ -60,16 +60,12 @@ bash .github/scripts/package-binary.sh darwin-arm64
 
 Linux 输出 TAR.GZ，macOS 输出包含图标和临时签名的 `.app` ZIP。macOS 本地构建应设置 `MACOSX_DEPLOYMENT_TARGET=12.0`，与 CI 一致。正式 Developer ID 签名、公证需另行配置。Unix 不要求安装 PowerShell。
 
-隔离验证、预览与发行检查示例：
+本地开发需要排查界面时，可手动使用隔离验证和预览入口；这些命令不加入 CI：
 
 ```sh
 bash scripts/build.sh qa
 ./target/debug/opensesame --self-test
 ./target/debug/opensesame --screenshot artifacts/en-main-light.png --scene main-light --language en
-# Linux 使用虚拟 X11 显示验证原生窗口启动
-xvfb-run -a python3 .github/scripts/check-binary.py linux-amd64 --smoke-test
-# macOS 检查打包后的 app
-python3 .github/scripts/check-binary.py darwin-arm64 --smoke-test
 ```
 
 ## 代码结构
@@ -110,7 +106,6 @@ python3 .github/scripts/check-binary.py darwin-arm64 --smoke-test
 
 ```powershell
 .\.github\scripts\package-binary.ps1
-.\.github\scripts\check-binary.ps1 -SmokeTest
 ```
 
 打包脚本从 Git 提交读取时间，设置 PE 去时间戳链接参数，固定 ZIP 条目顺序和时间，并生成 SHA-256。输出位于 `dist\release`。`-SkipBuild` 可复用已经构建的 EXE；没有 Git 元数据的源码目录需显式提供 `-SourceDateEpoch <Unix秒数>`。相同输入文件与时间可得到一致压缩包，不保证跨编译器或不同依赖版本的 EXE 完全一致。
@@ -136,7 +131,7 @@ python3 .github/scripts/check-binary.py darwin-arm64 --smoke-test
 
 自检使用独立配置与本机回环网络，覆盖界面操作、单台与批量开门、周期检测、批量独立更新、主题和语言切换。截图使用软件离屏渲染，不连接演示服务器。可用场景还包括 `main-dark`、`editor-dark`、`editor-error-light`、`batch-settings-light`、`batch-result-dark`、`empty-light` 和 `protocol-light`。
 
-`qa` 未被默认启用，发行程序不包含上述测试命令行入口。发行检查验证 Windows x64 / GUI 子系统、系统 DLL 依赖和大小图标；`-SmokeTest` 另用隔离 AppData 与软件后端检查中英文窗口启动，不访问真实配置。
+`qa` 未被默认启用，发行程序不包含上述测试命令行入口。它只用于本地开发，CI 不运行界面自检、截图或窗口启动验证。
 
 依赖审计按需执行，与 CI 使用同一工具版本：
 

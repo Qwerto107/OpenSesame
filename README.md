@@ -52,6 +52,12 @@
 | 外观与语言 | 浅色、深色、跟随系统；简体中文、English、跟随系统 |
 | 本地配置 | 按平台保存至用户配置目录，详见[配置参考](docs/configuration.md) |
 
+## 工作原理
+
+服务器平时通过防火墙限制 SSH 等业务端口。OpenSesame 按约定顺序发送 TCP / UDP 敲门报文；服务端 knockd 抓包匹配成功后，执行配置的命令，通常放行该来源 IP 对业务端口的访问。敲门端口本身不必开放或运行服务。
+
+客户端随后检测业务端口。“序列已发送”不等于服务端已放行，连接成功后仍需正常业务认证。放行时长由服务端规则决定，周期检测不会自动续期开门。更多细节见 [knockd 工作机制](docs/usage.md#knockd-工作机制)。
+
 ## 快速开始
 
 1. 从 [Releases](https://github.com/Qwerto107/OpenSesame/releases) 下载对应平台的发行包；Windows 运行 `OpenSesame.exe`，Linux 运行 `OpenSesame`，macOS 打开 `OpenSesame.app`。若尚未发布版本，可按[开发指南](docs/development.md)从源码构建。
@@ -59,8 +65,6 @@
 3. 保存并点击“开门”，查看业务端口的检测结果。自动检测、启动自动开门和检测周期可在“设置”中调整。
 
 下载校验及运行要求见[二进制说明](docs/binary.md)，完整操作见[使用指南](docs/usage.md)。
-
-初次接触端口敲门，可先阅读 [knockd 工作机制](docs/usage.md#knockd-工作机制)，了解客户端发送序列、服务端放行和业务端口检测的关系。
 
 ## 支持范围
 

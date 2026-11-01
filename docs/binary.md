@@ -87,4 +87,4 @@ macOS 构建最低目标为 12.0，实际兼容性需以对应机器验证。测
 
 ## 源码构建
 
-若尚无附件，或需要自行修改，请按[开发指南](https://github.com/Qwerto107/OpenSesame/blob/main/docs/development.md)构建。五平台检查和发布条件见[发布流程](https://github.com/Qwerto107/OpenSesame/blob/main/docs/releasing.md)。
+若尚无附件，或需要自行修改，请按[开发指南](https://github.com/Qwerto107/OpenSesame/blob/main/docs/development.md)构建。检查、五平台打包与发布条件见[发布流程](https://github.com/Qwerto107/OpenSesame/blob/main/docs/releasing.md)。

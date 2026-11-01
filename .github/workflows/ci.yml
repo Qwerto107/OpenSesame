@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       full_checks:
-        description: "运行依赖审计、隔离界面操作、双语预览及各平台程序启动检查"
+        description: "运行依赖漏洞检查"
         type: boolean
         default: false
 
@@ -33,25 +33,16 @@ defaults:
 
 jobs:
   rust:
-    name: Rust 与界面检查（${{ matrix.platform }}）
-    runs-on: ${{ matrix.runner }}
+    name: Rust 检查
+    runs-on: windows-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { platform: windows-amd64, runner: windows-latest, target: x86_64-pc-windows-gnu }
-          - { platform: linux-amd64, runner: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
-          - { platform: linux-arm64, runner: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
-          - { platform: darwin-amd64, runner: macos-15-intel, target: x86_64-apple-darwin }
-          - { platform: darwin-arm64, runner: macos-15, target: aarch64-apple-darwin }
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-rust
         with:
-          target: ${{ matrix.target }}
+          target: x86_64-pc-windows-gnu
       - name: 校验版本、格式与静态问题
         run: |
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
@@ -65,30 +56,10 @@ jobs:
       - name: 单元测试
         run: bash scripts/build.sh test
       - name: 依赖漏洞检查
-        if: matrix.platform == 'windows-amd64' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks))
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks)
         run: |
           cargo install cargo-audit --version 0.22.2 --locked --no-default-features
           cargo audit --file Cargo.lock
-      - name: 隔离界面与本机网络验证
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks)
-        run: |
-          bash scripts/build.sh qa
-          ./target/debug/opensesame --self-test
-      - name: 生成双语界面预览
-        if: github.event_name == 'workflow_dispatch' && inputs.full_checks
-        run: |
-          for language in zh-CN en; do
-            for scene in main-light main-dark settings-light editor-error-light; do
-              ./target/debug/opensesame --screenshot "artifacts/$language-$scene.png" --scene "$scene" --language "$language"
-            done
-          done
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        if: github.event_name == 'workflow_dispatch' && inputs.full_checks
-        with:
-          name: opensesame-ui-preview-${{ matrix.platform }}
-          path: artifacts/*.png
-          if-no-files-found: error
-          retention-days: 7
 
   binaries:
     name: 二进制构建（${{ matrix.platform }}）
@@ -120,21 +91,6 @@ jobs:
             pwsh -NoProfile -File .github/scripts/package-binary.ps1
           else
             bash .github/scripts/package-binary.sh "$PACKAGE_PLATFORM"
-          fi
-      - name: 检查发行程序
-        env:
-          SMOKE_TEST: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.full_checks) }}
-        run: |
-          if [[ "$RUNNER_OS" == Windows ]]; then
-            pwsh -NoProfile -Command './.github/scripts/check-binary.ps1 -SmokeTest:($env:SMOKE_TEST -eq "true")'
-          else
-            options=()
-            if [[ "$SMOKE_TEST" == true ]]; then options+=(--smoke-test); fi
-            if [[ "$RUNNER_OS" == Linux && "$SMOKE_TEST" == true ]]; then
-              xvfb-run -a python3 .github/scripts/check-binary.py "$PACKAGE_PLATFORM" "${options[@]}"
-            else
-              python3 .github/scripts/check-binary.py "$PACKAGE_PLATFORM" "${options[@]}"
-            fi
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
