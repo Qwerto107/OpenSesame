@@ -109,6 +109,23 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("zh-CN");
     let language = opensesame::i18n::resolve(language);
     config.settings.language = language.into();
+    let row_count = if scene.contains("-many-") {
+        12
+    } else if scene.contains("-eight-") {
+        8
+    } else {
+        2
+    };
+    if row_count > 2 {
+        for index in config.servers.len()..=row_count {
+            config.servers.push(Server {
+                id: opensesame::model::new_id(),
+                name: format!("演示服务器 {index:02}"),
+                host: format!("192.0.2.{index}"),
+                ..config.servers[0].clone()
+            });
+        }
+    }
     if scene.contains("-large-") {
         config.settings.font_size = 18;
     }
@@ -138,6 +155,12 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         true,
     )?;
     app.borrow_mut().preview_scene(scene);
+    if scene.starts_with("selection-all") || scene.starts_with("selection-none") {
+        ui.invoke_toggle_all_servers();
+        if scene.starts_with("selection-none") {
+            ui.invoke_toggle_all_servers();
+        }
+    }
     if scene.starts_with("editor-error") {
         ui.set_form_host("https://example.com/path".into());
         ui.invoke_save_server();
@@ -161,6 +184,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 host: "203.0.113.24".into(),
                 stage: msg!("Sequence sent · Steps: {current} / {total}", "current" => 4, "total" => 4).render(language).into(),
                 status: Message::from("Checking").render(language).into(),
+                detail: "".into(),
                 progress: 1.0,
                 kind: 1,
             },
@@ -169,15 +193,39 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 host: "gw.office.example".into(),
                 stage: msg!("Sending step {current} / {total}", "current" => 2, "total" => 3).render(language).into(),
                 status: msg!("Check {protocol} {port} after knocking", "protocol" => "UDP", "port" => 51820).render(language).into(),
+                detail: "".into(),
                 progress: 2.0 / 3.0,
                 kind: 1,
             },
         ])));
+        if row_count > 2 {
+            let examples: Vec<_> = ui.get_batch_rows().iter().collect();
+            ui.set_batch_rows(ModelRc::new(VecModel::from(
+                (0..row_count)
+                    .map(|index| {
+                        let mut row = examples[index % examples.len()].clone();
+                        if index >= 2 {
+                            row.name = format!("演示服务器 {index:02}").into();
+                            row.host = format!("192.0.2.{index}").into();
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>(),
+            )));
+            ui.set_batch_counter(
+                msg!("{sent} / {total} sent", "sent" => row_count / 2, "total" => row_count)
+                    .render(language)
+                    .into(),
+            );
+        }
     }
     ui.show()?;
     window.set_size(PhysicalSize::new(1120, 720));
     slint::platform::update_timers_and_animations();
-    if scene.starts_with("editor-service") || scene.starts_with("settings-font") {
+    if scene.starts_with("editor-service")
+        || scene.starts_with("settings-font")
+        || scene.contains("-scrolled-")
+    {
         window.dispatch_event(slint::platform::WindowEvent::PointerScrolled {
             position: slint::LogicalPosition::new(800.0, 530.0),
             delta_x: 0.0,
@@ -215,6 +263,9 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     config.settings.auto_check = false;
     config.settings.font_family = "OpenSesame Missing QA Font".into();
     let app = App::new(&ui, ConfigStore { path: path.clone() }, config, None, false)?;
+    ui.invoke_toggle_all_servers();
+    assert_eq!(ui.get_selected_count(), 0);
+    assert!(!path.exists(), "空列表的全选不写入配置");
     assert_eq!(
         ui.global::<crate::Palette>().get_font_family(),
         opensesame::fonts::default_family()
@@ -243,6 +294,27 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     let saved = ConfigStore { path: path.clone() }.load()?;
     assert_eq!(saved.servers.len(), 1);
     let id = saved.servers[0].id.clone();
+    // 用实际指针事件验证顶部全选框的命中区域和取消全选。
+    for expected in [1, 0] {
+        slint::platform::update_timers_and_animations();
+        let position = slint::LogicalPosition::new(33.0, 115.0);
+        window.dispatch_event(slint::platform::WindowEvent::PointerPressed {
+            position,
+            button: slint::platform::PointerEventButton::Left,
+        });
+        window.dispatch_event(slint::platform::WindowEvent::PointerReleased {
+            position,
+            button: slint::platform::PointerEventButton::Left,
+        });
+        assert_eq!(ui.get_selected_count(), expected);
+        assert_eq!(
+            ConfigStore { path: path.clone() }
+                .load()?
+                .checked_servers
+                .len(),
+            expected as usize
+        );
+    }
     ui.invoke_open_server();
     for _ in 0..100 {
         app.borrow_mut().tick();
@@ -318,7 +390,18 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
         ui.get_servers().iter().all(|row| row.status == "可连接"),
         "全部服务器应独立检测"
     );
-    ui.invoke_toggle_server(second_id.into());
+    assert_eq!(ui.get_selected_count(), 1, "新增服务器保持未勾选");
+    ui.invoke_toggle_all_servers();
+    assert_eq!(ui.get_selected_count(), 2, "部分选中时点击全选");
+    assert!(ui.get_servers().iter().all(|row| row.checked));
+    ui.invoke_toggle_all_servers();
+    assert_eq!(ui.get_selected_count(), 0);
+    ui.invoke_toggle_server(second_id.clone().into());
+    assert_eq!(
+        ConfigStore { path: path.clone() }.load()?.checked_servers,
+        vec![second_id.clone()]
+    );
+    ui.invoke_toggle_all_servers();
     ui.invoke_open_batch();
     assert!(ui.get_batch_running());
     for _ in 0..150 {
@@ -358,11 +441,22 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     ui.set_form_host("https://example.com/path".into());
     ui.invoke_save_server();
     assert!(ui.get_form_error().contains("有效的 IP"));
+    ui.set_dialog(0);
+    ui.invoke_delete_server();
+    let saved = ConfigStore { path: path.clone() }.load()?;
+    assert_eq!(
+        saved.checked_servers,
+        vec![id.clone()],
+        "删除已勾选服务器时清理持久化记录"
+    );
     ui.hide()?;
     drop(app);
     drop(ui);
     // 重新创建控制器，从磁盘恢复字体，验证重启后的显示设置。
-    let restored = ConfigStore { path: path.clone() }.load()?;
+    let mut restored = ConfigStore { path: path.clone() }.load()?;
+    restored
+        .checked_servers
+        .extend(["missing-server".into(), id.clone()]);
     let restored_family = restored.settings.font_family.clone();
     let restored_ui = AppWindow::new()?;
     let restored_app = App::new(
@@ -377,11 +471,39 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
         restored_ui.global::<crate::Palette>().get_font_family(),
         restored_family
     );
+    assert_eq!(
+        restored_ui.get_selected_count(),
+        1,
+        "重启恢复勾选并忽略失效、重复 ID"
+    );
+    assert!(restored_ui.get_servers().row_data(0).unwrap().checked);
     drop(restored_app);
     drop(restored_ui);
+    let failed_ui = AppWindow::new()?;
+    let mut failed_config = ConfigStore { path: path.clone() }.load()?;
+    failed_config.checked_servers.clear();
+    // 故意把已有配置文件当作目录，验证写入失败不会改变勾选或破坏原文件。
+    let failed_app = App::new(
+        &failed_ui,
+        ConfigStore {
+            path: path.join("config.json"),
+        },
+        failed_config,
+        None,
+        false,
+    )?;
+    failed_ui.invoke_toggle_all_servers();
+    assert_eq!(failed_ui.get_selected_count(), 0);
+    assert!(!failed_ui.get_banner().is_empty());
+    assert_eq!(
+        ConfigStore { path: path.clone() }.load()?.checked_servers,
+        vec![id]
+    );
+    drop(failed_app);
+    drop(failed_ui);
     std::fs::remove_file(path)?;
     println!(
-        "界面操作、配置保存、字体选择与恢复、单台／批量敲门、周期检测及中英文切换与校验提示验证通过"
+        "界面操作、全选与勾选持久化、删除清理与保存失败、字体设置、单台／批量敲门、周期检测及中英文切换验证通过"
     );
     Ok(())
 }

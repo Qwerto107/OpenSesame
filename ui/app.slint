@@ -7,7 +7,7 @@ import "../assets/fonts/JetBrainsMono.ttf";
 export { Palette }
 export struct ServerRow { id: string, name: string, host: string, service: string, udp: bool, checked: bool, selected: bool, status: string, kind: int }
 export struct StepRow { port: string, udp: bool }
-export struct BatchRow { name: string, host: string, stage: string, status: string, progress: float, kind: int }
+export struct BatchRow { name: string, host: string, stage: string, status: string, detail: string, progress: float, kind: int }
 
 component StepEditor inherits Rectangle {
     in property <[StepRow]> steps;
@@ -105,6 +105,7 @@ export component AppWindow inherits Window {
 
     callback select-server(string);
     callback toggle-server(string);
+    callback toggle-all-servers();
     callback add-server();
     callback edit-server();
     callback delete-server();
@@ -154,9 +155,22 @@ export component AppWindow inherits Window {
                         Rectangle { horizontal-stretch: 1; }
                         UiButton { text: @tr("+ Add"); primary: true; height: 32px; clicked => { root.add-server(); } }
                     }
+                    HorizontalLayout {
+                        height: max(28px, select-all-label.preferred-height + 10px); padding-left: 24px; padding-right: 24px; padding-bottom: 10px; spacing: 12px;
+                        TickBox {
+                            checked: root.servers.length > 0 && root.selected-count == root.servers.length;
+                            mixed: root.selected-count > 0 && root.selected-count < root.servers.length;
+                            enabled: root.servers.length > 0;
+                            label: @tr("Select all servers");
+                            toggled => { root.toggle-all-servers(); }
+                        }
+                        select-all-label := Body { text: @tr("Select all"); vertical-alignment: center; }
+                        Rectangle { horizontal-stretch: 1; }
+                        Label { text: root.selected-count + " / " + root.servers.length; font-family: "JetBrains Mono"; vertical-alignment: center; }
+                    }
                     ScrollView {
                         horizontal-stretch: 1; vertical-stretch: 1;
-                        content-width: self.width;
+                        content-width: self.visible-width;
                         VerticalLayout {
                             padding-left: 12px; padding-right: 12px; spacing: 8px;
                             if root.servers.length == 0: Rectangle {
@@ -164,12 +178,12 @@ export component AppWindow inherits Window {
                                 Label { text: @tr("No servers"); horizontal-alignment: center; vertical-alignment: center; }
                             }
                             for server in root.servers: Rectangle {
-                                height: 74px; border-radius: 10px; border-width: 1px;
+                                height: max(64px, server-row-content.preferred-height); border-radius: 10px; border-width: 1px;
                                 border-color: server.selected ? Palette.accent : Palette.border;
                                 background: server.selected ? Palette.selected : Palette.card;
                                 TouchArea { mouse-cursor: pointer; clicked => { root.select-server(server.id); } }
-                                HorizontalLayout {
-                                    padding: 12px; spacing: 12px;
+                                server-row-content := HorizontalLayout {
+                                    padding-left: 12px; padding-right: 12px; padding-top: 11px; padding-bottom: 11px; spacing: 12px;
                                     VerticalLayout { width: 18px; alignment: center; TickBox { checked: server.checked; label: @tr("Select {0}", server.name); toggled => { root.toggle-server(server.id); } } }
                                     VerticalLayout {
                                         spacing: 2px; horizontal-stretch: 1;
@@ -178,7 +192,7 @@ export component AppWindow inherits Window {
                                     }
                                     VerticalLayout {
                                         spacing: 5px; alignment: end;
-                                        ProtocolTag { text: server.service; udp: server.udp; }
+                                        HorizontalLayout { alignment: end; ProtocolTag { text: server.service; udp: server.udp; } }
                                         HorizontalLayout {
                                             spacing: 5px; alignment: end;
                                             StatusIcon { kind: server.kind; }
@@ -319,7 +333,7 @@ export component AppWindow inherits Window {
                 if root.batch-view: VerticalLayout {
                     padding-left: 32px; padding-right: 32px; padding-top: 28px; padding-bottom: 28px; spacing: 16px;
                     HorizontalLayout {
-                        height: max(57px, batch-title.preferred-height);
+                        height: max(56px, batch-title.preferred-height);
                         batch-title := VerticalLayout { spacing: 4px; Text { text: @tr("Batch knock"); color: Palette.text; font-size: 26px * Palette.font-scale; font-weight: 700; } Label { text: @tr("Selected: {0} · Checks run after knocking", root.batch-rows.length); font-size: 13px * Palette.font-scale; } }
                         Label { text: root.batch-counter; font-size: 15px * Palette.font-scale; vertical-alignment: center; horizontal-alignment: right; }
                     }
@@ -331,23 +345,60 @@ export component AppWindow inherits Window {
                             VerticalLayout { width: 32px; alignment: center; UiButton { text: "×"; width: 32px; height: 32px; clicked => { root.show-batch-summary = false; } } }
                         }
                     }
-                    ScrollView {
-                        content-width: self.width;
-                        VerticalLayout {
-                            spacing: 16px;
-                            for result in root.batch-rows: Card {
-                                height: max(112px, batch-row-content.preferred-height);
-                                batch-row-content := VerticalLayout { padding-top: 16px; padding-bottom: 16px; padding-left: 20px; padding-right: 20px; spacing: 12px;
+                    Rectangle {
+                        vertical-stretch: 1;
+                        batch-table := Card {
+                            x: 0px; y: 0px;
+                            width: parent.width; height: min(parent.height, 36px + root.batch-rows.length * 64px);
+                            property <length> server-column: min(190px, (batch-viewport.visible-width - 72px) * 0.30);
+                            property <length> status-column: min(220px, (batch-viewport.visible-width - 72px) * 0.34);
+                            clip: true;
+                            VerticalLayout {
+                                spacing: 0px;
+                                Rectangle {
+                                    height: 36px;
                                     HorizontalLayout {
-                                        height: max(36px, batch-host.preferred-height);
-                                        batch-host := VerticalLayout { spacing: 2px; Heading { text: result.name; font-size: 15px * Palette.font-scale; } Label { text: result.host; font-family: "JetBrains Mono"; } }
-                                        Body { text: result.stage; color: result.progress >= 1 ? Palette.green : Palette.text; vertical-alignment: center; horizontal-alignment: right; }
+                                        width: batch-viewport.visible-width;
+                                        padding-left: 16px; padding-right: 16px; spacing: 20px;
+                                        Label { width: batch-table.server-column; text: @tr("Server"); vertical-alignment: center; }
+                                        Label { text: @tr("Knock progress"); vertical-alignment: center; horizontal-stretch: 1; }
+                                        Label { width: batch-table.status-column; text: @tr("Port status"); horizontal-alignment: right; vertical-alignment: center; }
                                     }
-                                    Rectangle { height: 4px; background: Palette.border; border-radius: 2px; Rectangle { x: 0px; y: 0px; width: parent.width * result.progress; background: Palette.accent; border-radius: 2px; } }
-                                    batch-status := HorizontalLayout { height: max(16px, batch-status.preferred-height); spacing: 5px; StatusIcon { kind: result.kind; } Body { text: result.status; font-size: 12px * Palette.font-scale; color: result.kind == 2 ? Palette.green : result.kind == 1 ? Palette.accent : result.kind == 3 ? Palette.amber : result.kind == 4 ? Palette.red : Palette.muted; overflow: elide; } }
+                                    Rectangle { y: parent.height - 1px; height: 1px; background: Palette.border; }
+                                }
+                                batch-viewport := ScrollView {
+                                    content-width: self.visible-width;
+                                    VerticalLayout {
+                                        spacing: 0px;
+                                        for result[i] in root.batch-rows: Rectangle {
+                                            height: 64px;
+                                            HorizontalLayout {
+                                                padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; spacing: 20px;
+                                                VerticalLayout {
+                                                    width: batch-table.server-column; spacing: 2px; alignment: center;
+                                                    Heading { text: result.name; overflow: elide; }
+                                                    Label { text: result.host; font-family: "JetBrains Mono"; overflow: elide; }
+                                                }
+                                                VerticalLayout {
+                                                    horizontal-stretch: 1; alignment: center; spacing: 8px;
+                                                    Body { text: result.stage; font-size: 12px * Palette.font-scale; color: result.progress >= 1 ? Palette.green : Palette.text; overflow: elide; }
+                                                    Rectangle { height: 4px; background: Palette.border; border-radius: 2px; Rectangle { width: parent.width * result.progress; height: parent.height; background: Palette.accent; border-radius: 2px; } }
+                                                }
+                                                VerticalLayout {
+                                                    width: batch-table.status-column; spacing: 3px; alignment: center;
+                                                    HorizontalLayout {
+                                                        spacing: 5px; alignment: end;
+                                                        VerticalLayout { width: 14px; alignment: center; StatusIcon { kind: result.kind; } }
+                                                        Body { text: result.status; font-size: 12px * Palette.font-scale; color: result.kind == 2 ? Palette.green : result.kind == 1 ? Palette.accent : result.kind == 3 ? Palette.amber : result.kind == 4 ? Palette.red : Palette.muted; overflow: elide; }
+                                                    }
+                                                    if result.detail != "": Label { text: result.detail; font-size: 11px * Palette.font-scale; horizontal-alignment: right; overflow: elide; }
+                                                }
+                                            }
+                                            if i + 1 < root.batch-rows.length: Rectangle { y: parent.height - 1px; height: 1px; background: Palette.border; }
+                                        }
+                                    }
                                 }
                             }
-                            Rectangle { vertical-stretch: 1; }
                         }
                     }
                     if !root.batch-running: HorizontalLayout { alignment: end; UiButton { text: @tr("Back to current server"); clicked => { root.batch-view = false; } } }

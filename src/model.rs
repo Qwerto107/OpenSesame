@@ -162,6 +162,7 @@ pub struct Config {
     pub version: u32,
     pub servers: Vec<Server>,
     pub current_server: Option<String>,
+    pub checked_servers: Vec<String>,
     pub settings: Settings,
 }
 
@@ -171,6 +172,7 @@ impl Default for Config {
             version: 1,
             servers: vec![],
             current_server: None,
+            checked_servers: vec![],
             settings: Settings::default(),
         }
     }
@@ -270,6 +272,7 @@ mod tests {
         assert_eq!(config.settings.language, "system");
         assert_eq!(config.settings.font_family, "");
         assert_eq!(config.settings.font_size, 13);
+        assert!(config.checked_servers.is_empty());
         assert!(config.settings.auto_knock);
     }
 

@@ -134,6 +134,8 @@ bash scripts/build.sh qa
 
 `qa` 未被默认启用，发行程序不包含上述测试命令行入口。它只用于本地开发，CI 不运行界面自检、截图或窗口启动验证。
 
+全选与布局修改可使用 `selection-all-light`、`selection-none-light`、`batch-progress-eight-light`、`batch-progress-many-light` 和 `batch-result-many-light` 场景。场景名称加入 `-scrolled-` 可滚动内容区域后截图，例如 `batch-result-many-scrolled-light`。自检覆盖全选框点击、部分选中到全选、取消全选、勾选保存与恢复、删除清理及保存失败后的状态保留。
+
 依赖审计按需执行，与 CI 使用同一工具版本：
 
 ```powershell

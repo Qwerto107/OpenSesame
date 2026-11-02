@@ -84,20 +84,27 @@ export component Toggle inherits Rectangle {
 
 export component TickBox inherits Rectangle {
     in property <bool> checked;
+    in property <bool> mixed;
+    in property <bool> enabled: true;
     in property <string> label;
     callback toggled();
     width: 18px; height: 18px;
     border-radius: 5px; border-width: 1.5px;
-    border-color: checked ? Palette.accent : #6B7280;
-    background: checked ? Palette.accent : transparent;
+    border-color: checked || mixed ? Palette.accent : #6B7280;
+    background: checked || mixed ? Palette.accent : transparent;
+    opacity: enabled ? 1 : 0.45;
     accessible-role: checkbox;
     accessible-label: label;
     accessible-checked: checked;
-    if checked: Image {
+    accessible-enabled: enabled;
+    if mixed: Rectangle {
+        x: 5px; y: 8px; width: 8px; height: 2px; background: #04202A;
+    }
+    if checked && !mixed: Image {
         x: 3px; y: 3px; width: 12px; height: 12px;
         source: @image-url("../assets/status/check.svg"); colorize: #04202A;
     }
-    TouchArea { mouse-cursor: pointer; clicked => { root.toggled(); } }
+    TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { root.toggled(); } }
 }
 
 export component Segments inherits Rectangle {

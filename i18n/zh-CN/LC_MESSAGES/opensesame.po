@@ -34,6 +34,21 @@ msgstr "新增服务器"
 msgid "All servers"
 msgstr "全部服务器"
 
+msgid "Select all"
+msgstr "全选"
+
+msgid "Select all servers"
+msgstr "全选服务器"
+
+msgid "Server"
+msgstr "服务器"
+
+msgid "Knock progress"
+msgstr "敲门进度"
+
+msgid "Port status"
+msgstr "端口状态"
+
 msgid "Appearance"
 msgstr "外观"
 

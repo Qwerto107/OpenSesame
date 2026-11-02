@@ -42,6 +42,7 @@
     }
   ],
   "current_server": "example-server",
+  "checked_servers": ["example-server"],
   "settings": {
     "language": "system",
     "font_family": "",
@@ -63,7 +64,10 @@
 | `version` | `1` | 配置格式版本，目前只接受 `1` |
 | `servers` | `[]` | 服务器数组，首次启动无演示记录 |
 | `current_server` | `null` | 上次选中服务器的 ID，启动自动开门使用此选择 |
+| `checked_servers` | `[]` | 批量操作勾选的服务器 ID；每次勾选或全选变更后保存，重启恢复 |
 | `settings` | 见下表 | 应用级设置，缺失字段使用默认值 |
+
+勾选与当前查看的服务器分别保存。启动恢复时忽略已不存在的 ID，并对重复 ID 去重；删除服务器时同步清理勾选记录。旧配置缺少 `checked_servers` 时默认未勾选。恢复勾选不会执行批量开门，保存失败时界面保留原勾选并显示错误。
 
 ## 服务器字段
 

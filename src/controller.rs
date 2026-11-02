@@ -105,7 +105,7 @@ impl App {
     pub fn new(
         ui: &AppWindow,
         store: ConfigStore,
-        config: Config,
+        mut config: Config,
         load_error: Option<Message>,
         preview: bool,
     ) -> Result<Rc<RefCell<Self>>, Message> {
@@ -119,6 +119,15 @@ impl App {
         slint::select_bundled_translation(language)
             .map_err(|error| Message::from(error.to_string()))?;
         ui.set_config_path(store.path.to_string_lossy().into_owned().into());
+        // 只恢复仍存在的服务器，并按列表顺序去重，兼容删除或迁移后的配置。
+        let checked: HashSet<_> = config.checked_servers.iter().cloned().collect();
+        config.checked_servers = config
+            .servers
+            .iter()
+            .filter(|server| checked.contains(&server.id))
+            .map(|server| server.id.clone())
+            .collect();
+        let checked = config.checked_servers.iter().cloned().collect();
         let mut app = Self {
             language,
             font_families: fonts::installed_families(),
@@ -126,7 +135,7 @@ impl App {
             store,
             read_only: load_error.is_some(),
             states: HashMap::new(),
-            checked: HashSet::new(),
+            checked,
             batch: vec![],
             editing_id: None,
             form_steps: Rc::new(VecModel::from(vec![])),
@@ -211,12 +220,26 @@ impl App {
             let app = app.clone();
             ui.on_toggle_server(move |id| {
                 let mut app = app.borrow_mut();
-                if !app.checked.remove(id.as_str()) {
-                    app.checked.insert(id.to_string());
+                let mut checked = app.checked.clone();
+                if !checked.remove(id.as_str()) {
+                    checked.insert(id.to_string());
                 }
+                app.save_selection(&checked);
                 app.refresh();
             });
         }
+        action!(on_toggle_all_servers, |app: &mut App| {
+            let checked = if app.checked.len() == app.config.servers.len() {
+                HashSet::new()
+            } else {
+                app.config
+                    .servers
+                    .iter()
+                    .map(|server| server.id.clone())
+                    .collect()
+            };
+            app.save_selection(&checked);
+        });
         action!(on_add_server, |app: &mut App| {
             app.open_editor(false);
         });
@@ -371,8 +394,23 @@ impl App {
             return false;
         }
         self.config = config;
+        self.checked = self.config.checked_servers.iter().cloned().collect();
         self.banner.clear();
         true
+    }
+
+    fn save_selection(&mut self, checked: &HashSet<String>) {
+        let mut config = self.config.clone();
+        config.checked_servers = config
+            .servers
+            .iter()
+            .filter(|server| checked.contains(&server.id))
+            .map(|server| server.id.clone())
+            .collect();
+        // 复用配置保存流程；写入失败时保留原勾选，并显示现有错误横幅。
+        if config.checked_servers != self.config.checked_servers {
+            self.persist(config);
+        }
     }
 
     fn set_steps(&mut self, steps: &[KnockStep]) {
@@ -470,6 +508,7 @@ impl App {
         };
         let mut config = self.config.clone();
         config.servers.retain(|server| server.id != id);
+        config.checked_servers.retain(|checked| checked != &id);
         config.current_server = config.servers.first().map(|server| server.id.clone());
         if !self.persist(config) {
             return;
@@ -1030,28 +1069,38 @@ impl App {
                 if state.knock.is_some() || state.probe.is_some() {
                     running = true;
                 }
-                let status = if state.knock.is_some() {
-                    msg!("Check {protocol} {port} after knocking", "protocol" => server.service_protocol.label(), "port" => server.service_port).render(self.language)
+                // 表格把短状态和检测时间、错误原因分开显示。
+                let (status, detail) = if state.knock.is_some() {
+                    let status = msg!("Check {protocol} {port} after knocking", "protocol" => server.service_protocol.label(), "port" => server.service_port).render(self.language);
+                    (status, String::new())
                 } else if let Some(error) = &state.knock_error {
-                    error.render(self.language)
+                    (
+                        Message::from("Send failed").render(self.language),
+                        error.render(self.language),
+                    )
                 } else {
-                    format!(
-                        "{} {} {} · {}",
+                    let status = format!(
+                        "{} {} {}",
                         server.service_protocol.label(),
                         server.service_port,
-                        Message::from(state.state.short_label(server.service_protocol)).render(self.language),
-                        if state.state == PortState::Unknown {
-                            Message::from("No response received; this does not mean the port is closed.").render(self.language)
-                        } else {
-                            state.last_check.clone()
-                        }
-                    )
+                        Message::from(state.state.short_label(server.service_protocol)).render(self.language)
+                    );
+                    let detail = if state.state == PortState::Unknown {
+                        Message::from("No response received; this does not mean the port is closed.")
+                            .render(self.language)
+                    } else if state.state == PortState::Checking || state.state == PortState::Idle {
+                        String::new()
+                    } else {
+                        state.last_check.clone()
+                    };
+                    (status, detail)
                 };
                 Some(BatchRow {
                     name: server.name.clone().into(),
                     host: server.host.clone().into(),
                     stage: stage(server, state).render(self.language).into(),
                     status: status.into(),
+                    detail: detail.into(),
                     progress: state.progress as f32 / server.open_sequence.len().max(1) as f32,
                     kind: if state.knock.is_some() {
                         1
@@ -1099,6 +1148,14 @@ impl App {
             .collect();
         if ids.len() >= 4 {
             self.checked.extend([ids[1].clone(), ids[2].clone()]);
+            if scene.contains("-many-") || scene.contains("-eight-") {
+                self.checked = ids.iter().skip(1).cloned().collect();
+            }
+            self.config.checked_servers = ids
+                .iter()
+                .filter(|id| self.checked.contains(*id))
+                .cloned()
+                .collect();
             for (index, id) in ids.iter().enumerate() {
                 let state = self.states.get_mut(id).unwrap();
                 state.state = match index {
@@ -1132,10 +1189,16 @@ impl App {
             self.open_batch_editor();
         }
         if scene.starts_with("batch-result") {
-            self.batch = ids.iter().skip(1).take(2).cloned().collect();
-            for id in &self.batch {
+            let count = if scene.contains("-many-") { 12 } else { 2 };
+            self.batch = ids.iter().skip(1).take(count).cloned().collect();
+            for (index, id) in self.batch.iter().enumerate() {
                 let state = self.states.get_mut(id).unwrap();
                 state.sent = true;
+                state.state = if index == 1 {
+                    PortState::Unknown
+                } else {
+                    PortState::Reachable
+                };
                 state.progress = self
                     .config
                     .servers
