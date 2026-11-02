@@ -5,7 +5,7 @@ export component UiButton inherits Rectangle {
     in property <bool> primary;
     in property <bool> danger;
     in property <bool> enabled: true;
-    in property <length> font-size: 13px;
+    in property <length> font-size: 13px * Palette.font-scale;
     callback clicked();
     height: 36px;
     min-width: caption.preferred-width + 28px;
@@ -44,7 +44,7 @@ export component Field inherits Rectangle {
     forward-focus: input;
     if text == "": Text {
         x: 12px; width: parent.width - 24px;
-        text: root.placeholder; font-size: 13px; color: Palette.muted;
+        text: root.placeholder; font-size: 13px * Palette.font-scale; color: Palette.muted;
         vertical-alignment: center;
     }
     input := TextInput {
@@ -53,7 +53,7 @@ export component Field inherits Rectangle {
         enabled: root.enabled;
         single-line: true;
         font-family: root.mono ? "JetBrains Mono" : Palette.font-family;
-        font-size: 14px;
+        font-size: 14px * Palette.font-scale;
         color: Palette.text;
         selection-background-color: Palette.accent;
         selection-foreground-color: #04202A;
@@ -113,7 +113,7 @@ export component Segments inherits Rectangle {
             background: root.index == i ? Palette.segment : Palette.inset;
             Text {
                 text: label; color: root.index == i ? Palette.accent-text : Palette.muted;
-                font-size: 13px; font-weight: root.index == i ? 600 : 400;
+                font-size: 13px * Palette.font-scale; font-weight: root.index == i ? 600 : 400;
                 horizontal-alignment: center; vertical-alignment: center;
             }
             TouchArea { mouse-cursor: pointer; clicked => { root.selected(i); } }
@@ -121,19 +121,19 @@ export component Segments inherits Rectangle {
     }
 }
 
-export component Label inherits Text { font-size: 12px; color: Palette.muted; }
-export component Heading inherits Text { font-size: 14px; font-weight: 600; color: Palette.text; }
-export component Body inherits Text { font-size: 13px; color: Palette.text; }
+export component Label inherits Text { font-size: 12px * Palette.font-scale; color: Palette.muted; }
+export component Heading inherits Text { font-size: 14px * Palette.font-scale; font-weight: 600; color: Palette.text; }
+export component Body inherits Text { font-size: 13px * Palette.font-scale; color: Palette.text; }
 export component Card inherits Rectangle { background: Palette.card; border-color: Palette.border; border-width: 1px; border-radius: 12px; }
 
 export component ProtocolTag inherits Rectangle {
     in property <string> text;
     in property <bool> udp;
-    width: tag.preferred-width + 12px; height: 20px;
+    width: tag.preferred-width + 12px; height: max(20px, tag.preferred-height + 4px);
     border-radius: 5px;
     background: udp ? Palette.amber-bg : Palette.selected;
     tag := Text {
-        text: root.text; font-size: 11px; font-weight: 600;
+        text: root.text; font-size: 11px * Palette.font-scale; font-weight: 600;
         color: root.udp ? Palette.amber : Palette.accent-text;
         horizontal-alignment: center; vertical-alignment: center;
     }
@@ -174,7 +174,7 @@ export component ErrorNotice inherits Rectangle {
     caption := Text {
         x: 38px; y: 10px; width: parent.width - 50px;
         height: self.preferred-height; text: root.text;
-        color: Palette.red; font-size: 12px; wrap: word-wrap;
+        color: Palette.red; font-size: 12px * Palette.font-scale; wrap: word-wrap;
     }
 }
 

@@ -130,6 +130,8 @@ pub enum Appearance {
 #[serde(default)]
 pub struct Settings {
     pub language: String,
+    pub font_family: String,
+    pub font_size: u16,
     pub auto_knock: bool,
     pub auto_check: bool,
     pub check_all: bool,
@@ -142,6 +144,8 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             language: "system".into(),
+            font_family: String::new(),
+            font_size: 13,
             auto_knock: false,
             auto_check: true,
             check_all: true,
@@ -178,6 +182,9 @@ impl Config {
             return Err(
                 msg!("Unsupported configuration version: {version}", "version" => self.version),
             );
+        }
+        if !(12..=18).contains(&self.settings.font_size) {
+            return Err("Font size must be between 12 and 18 px.".into());
         }
         let mut ids = std::collections::HashSet::new();
         for server in &self.servers {
@@ -261,7 +268,25 @@ mod tests {
     fn old_configuration_defaults_to_system_language() {
         let config: Config = serde_json::from_str(r#"{"settings":{"auto_knock":true}}"#).unwrap();
         assert_eq!(config.settings.language, "system");
+        assert_eq!(config.settings.font_family, "");
+        assert_eq!(config.settings.font_size, 13);
         assert!(config.settings.auto_knock);
+    }
+
+    #[test]
+    fn font_settings_round_trip_and_validate_size() {
+        let mut config = Config::default();
+        config.settings.font_family = "Example Sans".into();
+        for size in [12, 13, 18] {
+            config.settings.font_size = size;
+            assert!(config.validate().is_ok());
+            let json = serde_json::to_string(&config).unwrap();
+            assert_eq!(serde_json::from_str::<Config>(&json).unwrap(), config);
+        }
+        for size in [0, 11, 19, u16::MAX] {
+            config.settings.font_size = size;
+            assert!(config.validate().is_err());
+        }
     }
     fn server() -> Server {
         Server {

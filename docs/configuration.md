@@ -44,6 +44,8 @@
   "current_server": "example-server",
   "settings": {
     "language": "system",
+    "font_family": "",
+    "font_size": 13,
     "auto_knock": false,
     "auto_check": true,
     "check_all": true,
@@ -89,6 +91,8 @@
 | 字段 | 默认值 | 说明 |
 | --- | --- | --- |
 | `language` | `system` | `system`、`zh-CN` 或 `en`；保存后立即应用 |
+| `font_family` | `""` | 界面字体名称；空字符串使用平台默认字体，保存后立即应用 |
+| `font_size` | `13` | 基础字号，整数 `12..18`，单位为逻辑像素；其他文字按比例缩放 |
 | `auto_knock` | `false` | 启动后为恢复的当前服务器敲门一次 |
 | `auto_check` | `true` | 开启周期检测，与自动敲门独立 |
 | `check_all` | `true` | 检测全部服务器；`false` 时只检测当前服务器 |
@@ -99,6 +103,10 @@
 保存新默认时间时，服务器对应字段等于旧默认值才会跟随更新，其他值保留。当前不单独保存“跟随默认”的标记，因此手工设置为与默认值相同的数值，也会跟随下一次更新。
 
 语言优先匹配完整代码，再匹配基础语言；未知语言回退到 English。服务器名称和输入内容不翻译。缺少 `language` 的旧配置按 `system` 处理。
+
+设置页列出本机已安装的字体，提供中英文预览和“恢复默认”。恢复默认后仍需保存，取消则保留原设置。地址和端口继续使用 JetBrains Mono 等宽字体。
+
+平台默认字体为 Windows 的 Microsoft YaHei、macOS 的 PingFang SC 或 Linux 的 Noto Sans CJK SC。配置中的字体未安装时，界面回退到平台默认字体，设置页标记“未安装”并保留原字体偏好。旧配置缺少字体字段时，使用默认字体和 13 px 基础字号。
 
 ## 校验与保存
 

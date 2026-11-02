@@ -1,5 +1,6 @@
 use crate::{AppWindow, BatchRow, Palette, ServerRow, StepRow};
 use opensesame::{
+    fonts,
     i18n::{self, Message},
     model::{self, Appearance, BatchUpdate, Config, KnockStep, Protocol, Server},
     msg,
@@ -79,6 +80,7 @@ enum Event {
 
 pub struct App {
     language: &'static str,
+    font_families: Vec<String>,
     config: Config,
     store: ConfigStore,
     read_only: bool,
@@ -117,18 +119,9 @@ impl App {
         slint::select_bundled_translation(language)
             .map_err(|error| Message::from(error.to_string()))?;
         ui.set_config_path(store.path.to_string_lossy().into_owned().into());
-        ui.global::<Palette>().set_font_family(
-            if cfg!(windows) {
-                "Microsoft YaHei"
-            } else if cfg!(target_os = "macos") {
-                "PingFang SC"
-            } else {
-                "Noto Sans CJK SC"
-            }
-            .into(),
-        );
         let mut app = Self {
             language,
+            font_families: fonts::installed_families(),
             config,
             store,
             read_only: load_error.is_some(),
@@ -553,6 +546,34 @@ impl App {
         ui.set_settings_all(settings.check_all);
         ui.set_settings_interval(settings.check_interval_secs.to_string().into());
         ui.set_settings_timeout(settings.check_timeout_secs.to_string().into());
+        let mut font_labels = vec![msg!("Default font").render(self.language)];
+        font_labels.extend(self.font_families.iter().cloned());
+        let mut font_values = vec![fonts::default_family().to_owned()];
+        font_values.extend(self.font_families.iter().cloned());
+        let font_index = if settings.font_family.is_empty() {
+            0
+        } else if let Some(index) = self
+            .font_families
+            .iter()
+            .position(|family| family.eq_ignore_ascii_case(&settings.font_family))
+        {
+            index + 1
+        } else {
+            font_labels.push(
+                msg!("{font} (unavailable)", "font" => settings.font_family.as_str())
+                    .render(self.language),
+            );
+            font_values.push(fonts::default_family().to_owned());
+            font_labels.len() - 1
+        };
+        ui.set_font_labels(ModelRc::new(VecModel::from(
+            font_labels.into_iter().map(Into::into).collect::<Vec<_>>(),
+        )));
+        ui.set_font_values(ModelRc::new(VecModel::from(
+            font_values.into_iter().map(Into::into).collect::<Vec<_>>(),
+        )));
+        ui.set_settings_font(font_index as i32);
+        ui.set_settings_font_size(settings.font_size.into());
         let labels = std::iter::once(msg!("Follow system").render(self.language))
             .chain(i18n::LANGUAGES.iter().map(|(_, name)| (*name).to_string()))
             .map(Into::into)
@@ -581,6 +602,24 @@ impl App {
         let timeout = parse_number(&ui.get_settings_timeout(), "Check timeout")?;
         model::validate_check_times(interval, timeout)?;
         let mut config = self.config.clone();
+        let font_index = ui.get_settings_font();
+        config.settings.font_family = if font_index == 0 {
+            String::new()
+        } else if font_index == self.font_families.len() as i32 + 1
+            && !config.settings.font_family.is_empty()
+        {
+            // 未安装的已保存字体仍保留，避免修改其他设置时丢失跨设备字体偏好。
+            config.settings.font_family.clone()
+        } else {
+            self.font_families
+                .get((font_index - 1) as usize)
+                .ok_or("Invalid font selection.")?
+                .clone()
+        };
+        config.settings.font_size = ui
+            .get_settings_font_size()
+            .try_into()
+            .map_err(|_| Message::from("Font size must be between 12 and 18 px."))?;
         // 全局设置更新默认值；跟随原默认值的服务器同步更新，单独定制的数值保留。
         for server in &mut config.servers {
             if server.check_interval_secs == config.settings.check_interval_secs {
@@ -842,6 +881,11 @@ impl App {
         let Some(ui) = self.ui.upgrade() else {
             return;
         };
+        ui.global::<Palette>().set_font_family(
+            fonts::resolve_family(&self.config.settings.font_family, &self.font_families).into(),
+        );
+        ui.global::<Palette>()
+            .set_font_size(self.config.settings.font_size.into());
         ui.global::<Palette>()
             .set_appearance(match self.config.settings.appearance {
                 Appearance::System => 0,

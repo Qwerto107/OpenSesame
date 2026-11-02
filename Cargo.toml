@@ -1,6 +1,6 @@
 [package]
 name = "opensesame"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "跨平台 TCP / UDP 端口敲门客户端"
 build = "build.rs"
@@ -11,6 +11,7 @@ qa = ["dep:image"]
 [dependencies]
 slint = { version = "=1.18.1", default-features = false, features = ["std", "backend-winit", "renderer-femtovg", "renderer-software", "compat-1-2"] }
 sys-locale = "0.3"
+fontique = { version = "=0.11.1", default-features = false, features = ["system"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }

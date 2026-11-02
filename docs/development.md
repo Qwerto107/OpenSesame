@@ -75,6 +75,7 @@ bash scripts/build.sh qa
 | `src/model.rs` | 配置模型、字段校验与批量更新 |
 | `src/network.rs` | TCP / UDP 敲门、业务探测及同 IP 互斥 |
 | `src/controller.rs` | 界面回调、调度、设置与状态管理 |
+| `src/fonts.rs` | 系统字体枚举与缺失字体回退 |
 | `src/storage.rs` | 平台配置目录、读取校验与安全写入 |
 | `src/i18n.rs`、`i18n/` | 运行时消息与语言目录 |
 | `src/preview.rs` | `qa` 功能下的隔离验证与截图 |
@@ -129,7 +130,7 @@ bash scripts/build.sh qa
 .\target\debug\opensesame.exe --screenshot artifacts\en-settings-light.png --scene settings-light --language en
 ```
 
-自检使用独立配置与本机回环网络，覆盖界面操作、单台与批量开门、周期检测、批量独立更新、主题和语言切换。截图使用软件离屏渲染，不连接演示服务器。可用场景还包括 `main-dark`、`editor-dark`、`editor-error-light`、`batch-settings-light`、`batch-result-dark`、`empty-light` 和 `protocol-light`。
+自检使用独立配置与本机回环网络，覆盖界面操作、单台与批量开门、周期检测、批量独立更新、字体选择与恢复、主题和语言切换。截图使用软件离屏渲染，不连接演示服务器。可用场景还包括 `main-dark`、`editor-dark`、`editor-error-light`、`batch-settings-light`、`batch-result-dark`、`empty-light` 和 `protocol-light`。`settings-font-light` 滚动到字体设置区域；`settings-font-large-light` 和 `main-large-light` 使用 18 px 基础字号。
 
 `qa` 未被默认启用，发行程序不包含上述测试命令行入口。它只用于本地开发，CI 不运行界面自检、截图或窗口启动验证。
 
@@ -148,7 +149,7 @@ cargo audit --file Cargo.lock
 - UDP 使用空数据报。无回复是“无法确认”，不等于端口关闭，也不等于业务可用。
 - 同一解析 IP 的敲门与业务探测互斥；不同 IP 可并行，周期从本轮完成后计算，避免重叠和堆积。
 - 异步结果按服务器 ID 和当前任务代次核对，配置编辑或删除后不应用过期结果。
-- 字体按平台选择微软雅黑、苹方或 Noto Sans CJK，复选标记使用 SVG；系统主题由 Slint 读取，各平台统一使用 Fluent 标准控件。主题、语言和状态文案复用现有组件与翻译资源。新增语言遵循[语言资源说明](../i18n/README.md)，不要复制业务逻辑。
+- 默认字体按平台选择微软雅黑、苹方或 Noto Sans CJK。设置页通过 Slint 已使用的 fontique 库枚举本机字体，保存字体名称和基础字号。缺失字体在显示时回退，地址和端口保持等宽字体。复选标记使用 SVG；系统主题由 Slint 读取，各平台统一使用 Fluent 标准控件。主题、语言和状态文案复用现有组件与翻译资源。新增语言遵循[语言资源说明](../i18n/README.md)，不要复制业务逻辑。
 - 代码注释使用中文，修改范围遵循项目协作规则；验收并获得明确授权后才提交，不擅自推送。
 
 原始[需求说明](requirements.md)及[设计对应与实施说明](implementation.md)作为开发背景保留，当前用户行为以使用指南和配置参考为准。

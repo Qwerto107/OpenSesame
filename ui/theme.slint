@@ -3,6 +3,8 @@ import { Palette as NativePalette } from "std-widgets.slint";
 export global Palette {
     in-out property <int> appearance;
     in-out property <string> font-family: "Microsoft YaHei";
+    in-out property <int> font-size: 13;
+    out property <float> font-scale: font-size / 13;
     property <color> native-background: NativePalette.background;
     out property <bool> dark: appearance == 1 || (appearance == 0 && native-background.to-oklch().lightness < 0.5);
     out property <color> canvas: dark ? #0B0F17 : #F4F7FB;

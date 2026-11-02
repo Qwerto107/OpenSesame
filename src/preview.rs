@@ -109,6 +109,9 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("zh-CN");
     let language = opensesame::i18n::resolve(language);
     config.settings.language = language.into();
+    if scene.contains("-large-") {
+        config.settings.font_size = 18;
+    }
     if scene.starts_with("protocol") {
         for (step, port) in config.servers[0]
             .open_sequence
@@ -174,7 +177,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     ui.show()?;
     window.set_size(PhysicalSize::new(1120, 720));
     slint::platform::update_timers_and_animations();
-    if scene.starts_with("editor-service") {
+    if scene.starts_with("editor-service") || scene.starts_with("settings-font") {
         window.dispatch_event(slint::platform::WindowEvent::PointerScrolled {
             position: slint::LogicalPosition::new(800.0, 530.0),
             delta_x: 0.0,
@@ -210,7 +213,12 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = Config::default();
     config.settings.language = "zh-CN".into();
     config.settings.auto_check = false;
+    config.settings.font_family = "OpenSesame Missing QA Font".into();
     let app = App::new(&ui, ConfigStore { path: path.clone() }, config, None, false)?;
+    assert_eq!(
+        ui.global::<crate::Palette>().get_font_family(),
+        opensesame::fonts::default_family()
+    );
     ui.show()?;
     window.set_size(PhysicalSize::new(1120, 720));
     slint::platform::update_timers_and_animations();
@@ -265,6 +273,7 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
             .appearance,
         Appearance::Light
     );
+    verify_font_settings(&ui, &path)?;
     ui.invoke_edit_server();
     ui.set_form_port(port.to_string().into());
     ui.invoke_save_server();
@@ -352,7 +361,88 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     ui.hide()?;
     drop(app);
     drop(ui);
+    // 重新创建控制器，从磁盘恢复字体，验证重启后的显示设置。
+    let restored = ConfigStore { path: path.clone() }.load()?;
+    let restored_family = restored.settings.font_family.clone();
+    let restored_ui = AppWindow::new()?;
+    let restored_app = App::new(
+        &restored_ui,
+        ConfigStore { path: path.clone() },
+        restored,
+        None,
+        true,
+    )?;
+    assert_eq!(restored_ui.global::<crate::Palette>().get_font_size(), 16);
+    assert_eq!(
+        restored_ui.global::<crate::Palette>().get_font_family(),
+        restored_family
+    );
+    drop(restored_app);
+    drop(restored_ui);
     std::fs::remove_file(path)?;
-    println!("界面操作、配置保存、单台／批量敲门、周期检测及中英文切换与校验提示验证通过");
+    println!(
+        "界面操作、配置保存、字体选择与恢复、单台／批量敲门、周期检测及中英文切换与校验提示验证通过"
+    );
+    Ok(())
+}
+
+fn verify_font_settings(
+    ui: &AppWindow,
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let store = ConfigStore { path: path.into() };
+    assert_eq!(
+        store.load()?.settings.font_family,
+        "OpenSesame Missing QA Font"
+    );
+    ui.invoke_open_settings();
+    assert!(
+        ui.get_font_labels()
+            .iter()
+            .last()
+            .unwrap()
+            .contains("未安装")
+    );
+    assert!(
+        ui.get_font_values().row_count() > 2,
+        "本机应能枚举到已安装字体"
+    );
+    let family = ui.get_font_values().row_data(1).unwrap();
+    ui.set_settings_font(1);
+    ui.set_settings_font_size(18);
+    // 取消只丢弃表单，不改变已生效或已保存的字体。
+    ui.set_dialog(0);
+    assert_eq!(ui.global::<crate::Palette>().get_font_size(), 13);
+    assert_eq!(store.load()?.settings.font_size, 13);
+    ui.invoke_open_settings();
+    assert_eq!(ui.get_settings_font_size(), 13);
+    ui.set_settings_font(1);
+    ui.set_settings_font_size(18);
+    ui.invoke_save_settings();
+    assert_eq!(ui.get_dialog(), 0, "{}", ui.get_form_error());
+    assert_eq!(ui.global::<crate::Palette>().get_font_family(), family);
+    assert_eq!(ui.global::<crate::Palette>().get_font_size(), 18);
+    assert!((ui.global::<crate::Palette>().get_font_scale() - 18.0 / 13.0).abs() < 0.001);
+    assert_eq!(store.load()?.settings.font_family, family.as_str());
+    assert_eq!(store.load()?.settings.font_size, 18);
+    ui.invoke_open_settings();
+    ui.set_settings_font_size(19);
+    ui.invoke_save_settings();
+    assert_eq!(ui.get_dialog(), 3);
+    assert!(!ui.get_form_error().is_empty());
+    assert_eq!(store.load()?.settings.font_size, 18);
+    ui.invoke_reset_font_settings();
+    ui.invoke_save_settings();
+    assert_eq!(ui.get_dialog(), 0, "{}", ui.get_form_error());
+    assert_eq!(
+        ui.global::<crate::Palette>().get_font_family(),
+        opensesame::fonts::default_family()
+    );
+    assert_eq!(store.load()?.settings.font_family, "");
+    assert_eq!(store.load()?.settings.font_size, 13);
+    ui.invoke_open_settings();
+    ui.set_settings_font(1);
+    ui.set_settings_font_size(16);
+    ui.invoke_save_settings();
     Ok(())
 }

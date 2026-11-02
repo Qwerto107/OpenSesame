@@ -37,6 +37,36 @@ msgstr "全部服务器"
 msgid "Appearance"
 msgstr "外观"
 
+msgid "Font"
+msgstr "字体"
+
+msgid "Default font"
+msgstr "默认字体"
+
+msgid "Interface font"
+msgstr "界面字体"
+
+msgid "Font size (px)"
+msgstr "字号（px）"
+
+msgid "Restore default"
+msgstr "恢复默认"
+
+msgid "Preview: OpenSesame 0123456789\n中文字体预览"
+msgstr "预览：OpenSesame 0123456789\n中文字体预览"
+
+msgid "Saved changes apply immediately. Addresses and ports keep their monospace font."
+msgstr "保存后立即生效。地址和端口继续使用等宽字体。"
+
+msgid "{font} (unavailable)"
+msgstr "{font}（未安装）"
+
+msgid "Invalid font selection."
+msgstr "请选择有效的字体"
+
+msgid "Font size must be between 12 and 18 px."
+msgstr "字号必须为 12 至 18 px"
+
 msgid "Apply to {0}"
 msgstr "应用到 {0} 台"
 
