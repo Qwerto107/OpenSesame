@@ -66,6 +66,12 @@
 
 下载校验及运行要求见[二进制说明](docs/binary.md)，完整操作见[使用指南](docs/usage.md)。
 
+## Web 版本
+
+Web 版使用 Rust + Axum，内嵌前端，SQLite 保存服务器和设置。支持密码及可选 Google 登录，通过浏览器远程访问。Linux amd64 产物为 `opensesame-web-linux-amd64.tar.gz`，默认端口 `18010`。也可使用 `ghcr.io/qwerto107/opensesame:latest` 镜像和 [Compose 配置](docker-compose.yml) 部署。部署与构建见 [Web 版本](docs/web.md)。
+
+敲门流量从后端服务器发出，放行的来源地址为后端出口 IP。
+
 ## 支持范围
 
 - 目标为 Windows 10 / 11 x64、Linux x64 / ARM64、macOS Intel / Apple Silicon。新增平台以对应 Actions 和实机验证结果为准。

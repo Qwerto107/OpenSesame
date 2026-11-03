@@ -5,4 +5,10 @@
 /artifacts/
 *.pdb
 __pycache__/
+/opensesame-web.sqlite3*
+/.env
+/data/
+/.release/
+/preview-web.log
+/preview-web.err
 

@@ -17,6 +17,7 @@
 | Linux ARM64 | `opensesame-linux-arm64.tar.gz` |
 | macOS Intel | `opensesame-darwin-amd64.zip` |
 | macOS Apple Silicon | `opensesame-darwin-arm64.zip` |
+| Web 服务端 · Linux x64 | `opensesame-web-linux-amd64.tar.gz` |
 
 每份压缩包都有同名 `.sha256` 文件。Windows 在 PowerShell 中校验：
 
@@ -36,6 +37,8 @@ shasum -a 256 -c opensesame-darwin-arm64.zip.sha256
 ```
 
 校验文件用于检查下载内容是否一致，不等同于发布者身份认证。Windows EXE 尚未签名，macOS app 使用临时签名，尚未进行 Developer ID 签名和公证。
+
+Web 包运行 `opensesame-web`，使用 SQLite，默认监听 `127.0.0.1:18010`，无需图形库。登录和反向代理配置见 [Web 版本](web.md)。以下启动与配置说明针对桌面应用。
 
 ## 启动程序
 

@@ -5,14 +5,18 @@ on:
     branches: ["**"]
     tags: ["v*"]
     paths:
-      ["src/**", "ui/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "docs/binary.md", "docs/releasing.md"]
+      ["src/**", "ui/**", "web/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "Dockerfile", ".dockerignore", "docker-compose.yml", "docs/binary.md", "docs/releasing.md", "docs/web.md"]
   pull_request:
     paths:
-      ["src/**", "ui/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "docs/binary.md", "docs/releasing.md"]
+      ["src/**", "ui/**", "web/**", "assets/**", "i18n/**", "scripts/**", ".github/**", "Cargo.toml", "Cargo.lock", "build.rs", "rust-toolchain.toml", ".gitattributes", "Dockerfile", ".dockerignore", "docker-compose.yml", "docs/binary.md", "docs/releasing.md", "docs/web.md"]
   workflow_dispatch:
     inputs:
+      publish_images:
+        description: "检查通过后发布 Web 镜像（仅 main）"
+        type: boolean
+        default: false
       full_checks:
-        description: "运行依赖漏洞检查"
+        description: "运行依赖漏洞检查及容器健康检查"
         type: boolean
         default: false
 
@@ -22,7 +26,7 @@ permissions:
 # 日常检查保留最新提交；版本发布不能中途取消。
 concurrency:
   group: opensesame-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && !(github.event_name == 'workflow_dispatch' && inputs.publish_images) }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -60,6 +64,45 @@ jobs:
         run: |
           cargo install cargo-audit --version 0.22.2 --locked --no-default-features
           cargo audit --file Cargo.lock
+
+  web:
+    name: Web 检查与 Linux amd64 构建
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: 读取工具链版本
+        id: toolchain
+        run: |
+          version="$(sed -n 's/^channel *= *"\([0-9.]*\)" *$/\1/p' rust-toolchain.toml | tr -d '\r')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ steps.toolchain.outputs.version }}
+          components: clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          key: web-linux-amd64
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: 检查和测试（不加载桌面依赖）
+        run: |
+          cargo clippy --locked --no-default-features --features web --all-targets -- -D warnings
+          bash scripts/build.sh test-web
+          node --check web/app.js
+      - name: 构建与打包
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        run: bash .github/scripts/package-web.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: opensesame-binaries-web-linux-amd64
+          path: dist/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
 
   binaries:
     name: 二进制构建（${{ matrix.platform }}）
@@ -100,10 +143,99 @@ jobs:
           compression-level: 0
           retention-days: 30
 
+  docker:
+    name: 统一容器部署检查
+    needs: web
+    if: github.event_name == 'workflow_dispatch' && inputs.full_checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: opensesame-binaries-web-linux-amd64
+          path: .release/binaries/
+      - name: 构建并启动本次程序的统一容器
+        run: |
+          (cd .release/binaries && sha256sum -c ./*.sha256 && tar -xzf opensesame-web-linux-amd64.tar.gz)
+          docker build --target release -t opensesame:check .
+          docker run -d --name opensesame-check -p 127.0.0.1:18010:18010 -e OPENSESAME_WEB_PASSWORD=CI-only-password-12345 opensesame:check
+      - name: 检查程序健康状态及首页
+        run: |
+          for attempt in {1..30}; do
+            if docker exec opensesame-check /opensesame-web healthcheck; then break; fi
+            if [[ "$attempt" == 30 ]]; then exit 1; fi
+            sleep 1
+          done
+          curl --fail --silent --show-error http://127.0.0.1:18010/ > /dev/null
+      - name: 失败日志
+        if: failure()
+        run: docker logs opensesame-check
+      - name: 清理容器
+        if: always()
+        run: docker rm -f -v opensesame-check
+
+  images:
+    name: 发布统一镜像
+    needs: [rust, web, docker]
+    if: >-
+      always() && needs.rust.result == 'success' &&
+      needs.web.result == 'success' &&
+      (needs.docker.result == 'success' || needs.docker.result == 'skipped') &&
+      ((github.event_name == 'workflow_dispatch' && inputs.publish_images) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: opensesame-binaries-web-linux-*
+          merge-multiple: true
+          path: .release/binaries/
+      - name: 核对并提取已构建程序
+        run: |
+          cd .release/binaries
+          sha256sum -c ./*.sha256
+          for archive in opensesame-web-linux-*.tar.gz; do tar -xzf "$archive"; done
+      - name: 生成镜像标签
+        id: meta
+        run: bash .github/scripts/image-tags.sh
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 复用二进制发布 Linux amd64 镜像
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: Dockerfile
+          target: release
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=OpenSesame
+          cache-from: type=gha,scope=opensesame
+          cache-to: type=gha,scope=opensesame,mode=max
+
   release:
     name: 发布版本二进制附件
-    needs: binaries
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [binaries, web, images]
+    if: >-
+      always() && needs.binaries.result == 'success' && needs.web.result == 'success' &&
+      needs.images.result == 'success' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

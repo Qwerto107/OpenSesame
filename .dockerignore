@@ -1,0 +1,13 @@
+.git
+.tools
+.design
+.env
+target
+dist
+artifacts
+data
+**/node_modules
+**/*.sqlite3*
+**/*.exe
+**/*.log
+**/*.err

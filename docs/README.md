@@ -18,6 +18,7 @@
 
 | 要做的事 | 文档 |
 | --- | --- |
+| 部署 Web 版、配置登录和 SQLite | [Web 版本](web.md) |
 | 了解运行要求和安装方式 | [部署指南](deployment.md) |
 | 下载、校验并运行发行程序 | [二进制说明](binary.md) |
 | 备份、恢复、升级或排查故障 | [备份与恢复](deployment.md#备份与恢复) · [升级与回退](deployment.md#升级与回退) · [故障排查](deployment.md#故障排查) |

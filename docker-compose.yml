@@ -1,0 +1,27 @@
+name: opensesame
+
+services:
+  opensesame:
+    image: ghcr.io/qwerto107/opensesame:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18010:18010"
+    environment:
+      OPENSESAME_WEB_LISTEN: 0.0.0.0:18010
+      OPENSESAME_WEB_ORIGIN: ${OPENSESAME_WEB_ORIGIN:-http://127.0.0.1:18010}
+      OPENSESAME_WEB_PASSWORD: ${OPENSESAME_WEB_PASSWORD:?请在 .env 中填写至少 12 字节的访问密码}
+      OPENSESAME_WEB_DB: /data/opensesame-web.sqlite3
+      OPENSESAME_GOOGLE_CLIENT_ID: ${OPENSESAME_GOOGLE_CLIENT_ID:-}
+      OPENSESAME_GOOGLE_CLIENT_SECRET: ${OPENSESAME_GOOGLE_CLIENT_SECRET:-}
+      OPENSESAME_GOOGLE_EMAILS: ${OPENSESAME_GOOGLE_EMAILS:-}
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    healthcheck:
+      test: ["CMD", "/opensesame-web", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

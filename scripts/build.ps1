@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('check', 'test', 'build', 'release', 'qa', 'fmt', 'lint')]
+    [ValidateSet('check', 'test', 'build', 'release', 'qa', 'fmt', 'lint', 'check-web', 'test-web', 'release-web')]
     [string]$Action = 'release'
 )
 
@@ -39,6 +39,9 @@ switch ($Action) {
     'test' { & $cargoCommand test --locked --lib }
     'build' { & $cargoCommand build --locked }
     'qa' { & $cargoCommand build --locked --features qa }
+    'check-web' { & $cargoCommand check --locked --no-default-features --features web --bin opensesame-web }
+    'test-web' { & $cargoCommand test --locked --no-default-features --features web --lib }
+    'release-web' { throw 'Web 发行构建仅支持 Linux amd64，请在 Linux 上运行 bash scripts/build.sh release-web' }
     'release' {
         & $cargoCommand build --locked --release
         if ($LASTEXITCODE -eq 0) {

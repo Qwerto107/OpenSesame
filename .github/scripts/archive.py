@@ -32,7 +32,7 @@ def create_archive(source, destination, epoch):
                             info.uid = info.gid = 0
                             info.uname = info.gname = ''
                             info.mtime = epoch
-                            info.mode = 0o755 if path.is_dir() or path.name == 'OpenSesame' else 0o644
+                            info.mode = 0o755 if path.is_dir() or path.name in ('OpenSesame', 'opensesame-web') else 0o644
                             info.pax_headers = {}
                             if path.is_file():
                                 with path.open('rb') as stream:
@@ -46,7 +46,7 @@ def create_archive(source, destination, epoch):
             with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
                 for path in entries:
                     name = path.relative_to(source.parent).as_posix()
-                    mode = 0o755 if path.is_dir() or path.name == 'OpenSesame' else 0o644
+                    mode = 0o755 if path.is_dir() or path.name in ('OpenSesame', 'opensesame-web') else 0o644
                     info = zipfile.ZipInfo(name + ('/' if path.is_dir() else ''), timestamp.timetuple()[:6])
                     info.create_system = 3
                     info.external_attr = ((stat.S_IFDIR if path.is_dir() else stat.S_IFREG) | mode) << 16

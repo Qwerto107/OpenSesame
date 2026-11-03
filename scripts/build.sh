@@ -13,6 +13,14 @@ case "$action" in
   test) cargo test --locked --lib ;;
   build) cargo build --locked ;;
   qa) cargo build --locked --features qa ;;
+  check-web) cargo check --locked --no-default-features --features web --bin opensesame-web ;;
+  test-web) cargo test --locked --no-default-features --features web --lib ;;
+  release-web)
+    [[ "$(uname -s):$(uname -m)" == Linux:x86_64 ]] || { printf '%s\n' 'Web 发行构建仅支持 Linux amd64' >&2; exit 1; }
+    cargo build --locked --release --no-default-features --features web --bin opensesame-web
+    mkdir -p dist
+    install -m 755 "${CARGO_TARGET_DIR:-target}/release/opensesame-web" dist/opensesame-web
+    ;;
   release)
     cargo build --locked --release
     mkdir -p dist

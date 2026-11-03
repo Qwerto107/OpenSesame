@@ -9,7 +9,7 @@ fi
 : "${GH_REPO:?缺少仓库名称}" "${GITHUB_SHA:?缺少源码提交}" "${GITHUB_STEP_SUMMARY:?缺少运行摘要路径}"
 
 cd release-assets
-archives=(opensesame-windows-amd64.zip opensesame-linux-amd64.tar.gz opensesame-linux-arm64.tar.gz opensesame-darwin-amd64.zip opensesame-darwin-arm64.zip)
+archives=(opensesame-windows-amd64.zip opensesame-linux-amd64.tar.gz opensesame-linux-arm64.tar.gz opensesame-darwin-amd64.zip opensesame-darwin-arm64.zip opensesame-web-linux-amd64.tar.gz)
 for archive in "${archives[@]}"; do
   test -s "$archive"
   test -s "$archive.sha256"
@@ -25,8 +25,9 @@ done
 prerelease=false
 latest=true
 if [[ "$tag" == *-* ]]; then prerelease=true; latest=false; fi
-printf '%s\n\n' 'OpenSesame 是跨平台 TCP / UDP 端口敲门客户端，提供 Windows x64、Linux x64 / ARM64、macOS Intel / Apple Silicon 版本。Windows 与 macOS 使用 ZIP，Linux 使用 TAR.GZ，每份附件附 SHA-256。macOS app 使用临时签名，尚未进行 Developer ID 签名和公证。' > release-notes.md
+printf '%s\n\n' 'OpenSesame 是跨平台 TCP / UDP 端口敲门客户端，提供 Windows x64、Linux x64 / ARM64、macOS Intel / Apple Silicon 版本。Windows 与 macOS 使用 ZIP，Linux 使用 TAR.GZ，每份附件附 SHA-256。另提供 Rust + Axum Web 版 Linux amd64 服务端，使用 SQLite，部署说明见 docs/web.md。macOS app 使用临时签名，尚未进行 Developer ID 签名和公证。' > release-notes.md
 printf '源码提交：%s\n\n' "$GITHUB_SHA" >> release-notes.md
+printf 'Web 镜像：`ghcr.io/%s:%s`（Linux amd64）。\n\n' "${GH_REPO,,}" "${tag#v}" >> release-notes.md
 printf '[二进制启动说明](https://github.com/%s/blob/%s/docs/binary.md) · [配置参考](https://github.com/%s/blob/%s/docs/configuration.md) · [发布流程](https://github.com/%s/blob/%s/docs/releasing.md)\n' \
   "$GH_REPO" "$tag" "$GH_REPO" "$tag" "$GH_REPO" "$tag" >> release-notes.md
 

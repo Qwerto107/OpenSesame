@@ -1,6 +1,25 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=GITHUB_SHA");
+    println!("cargo:rerun-if-changed=.git/HEAD");
+    println!("cargo:rerun-if-changed=.git/refs/heads");
+    let commit = env::var("GITHUB_SHA")
+        .ok()
+        .or_else(|| {
+            std::process::Command::new("git")
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .and_then(|output| String::from_utf8(output.stdout).ok())
+        })
+        .filter(|value| {
+            value.trim().len() >= 8 && value.trim().chars().all(|c| c.is_ascii_hexdigit())
+        })
+        .map(|value| value.trim()[..8].to_owned())
+        .unwrap_or_else(|| "unknown".into());
+    println!("cargo:rustc-env=OPENSESAME_BUILD_COMMIT={commit}");
     println!("cargo:rerun-if-changed=i18n");
     println!("cargo:rerun-if-changed=assets/icon.ico");
     println!("cargo:rerun-if-changed=assets/windows.rc");
@@ -39,7 +58,13 @@ fn main() {
         catalog,
     )
     .unwrap();
-    // 界面与 Rust 状态消息共用 PO 资源，并全部嵌入原生程序。
+    #[cfg(feature = "desktop")]
+    desktop();
+}
+
+#[cfg(feature = "desktop")]
+fn desktop() {
+    // Web 构建只生成消息目录，不编译或链接桌面界面。
     let config = slint_build::CompilerConfiguration::new()
         .with_style("fluent".into())
         .embed_resources(slint_build::EmbedResourcesKind::EmbedFiles)
