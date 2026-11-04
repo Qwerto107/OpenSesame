@@ -35,7 +35,7 @@ export OPENSESAME_WEB_ORIGIN=https://knock.example.com
 
 ## Docker 部署
 
-镜像为 `ghcr.io/qwerto107/opensesame:latest`，支持 Linux amd64。容器以 UID/GID `65532:65532` 运行，根目录只读，SQLite 保存在 `./data`。
+镜像为 `ghcr.io/qwerto107/opensesame:latest`，支持 Linux amd64。容器名称为 `opensesame`，以 UID/GID `65532:65532` 运行，根目录只读，SQLite 保存在 `./data`。
 
 ```sh
 mkdir -p opensesame/data
@@ -45,16 +45,21 @@ cd opensesame
 curl -fL https://raw.githubusercontent.com/Qwerto107/OpenSesame/main/docker-compose.yml -o docker-compose.yml
 ```
 
-在当前目录创建权限为 `0600` 的 `.env` 文件，填写访问密码：
+在 `docker-compose.yml` 同一目录创建权限为 `0600` 的 `.env` 文件，填写访问密码：
 
 ```dotenv
 OPENSESAME_WEB_PASSWORD='replace-with-at-least-12-bytes'
 OPENSESAME_WEB_ORIGIN=http://127.0.0.1:18010
 ```
 
+Compose 通过 `env_file: .env` 将文件中的变量直接传入容器，变量名使用上表中的程序配置项。未配置的项目使用镜像或程序默认值；镜像默认监听 `0.0.0.0:18010`，数据库路径为 `/data/opensesame-web.sqlite3`。如需修改监听地址或数据库路径，可在 `.env` 中设置已有的 `OPENSESAME_WEB_LISTEN` 和 `OPENSESAME_WEB_DB`，并相应调整端口映射或数据挂载。
+
 ```sh
+docker compose config -q
 docker compose up -d --pull always
 ```
+
+修改 `.env` 后运行 `docker compose up -d --force-recreate`，将新配置传入容器；仅运行 `docker compose restart` 不会重新加载环境变量。`config -q` 只校验配置，不输出密码。
 
 打开 `http://127.0.0.1:18010` 登录。Compose 默认只向宿主机回环地址映射端口；远程访问时配置 HTTPS 反向代理，并将 `.env` 中的 `OPENSESAME_WEB_ORIGIN` 改为实际访问来源。Google 登录可在 `.env` 中配置三个对应环境变量。
 
