@@ -30,6 +30,8 @@ function startApp() {
   let batchIds = [];
   let batchPreviousRuns = new Map();
   let polling = false;
+  let autoChecking = false;
+  const lastAutoCheck = new Map();
   let lastSync = 0;
   let pollTimer;
   let draftRevision = 0;
@@ -139,8 +141,8 @@ function startApp() {
     const settings = data.config.settings;
     const explanation = result.status === 'reachable' ? (s.service_protocol === 'tcp' ? '仅表示连接建立，不代表登录成功' : '仅表示收到响应，不代表登录成功')
       : result.status === 'unknown' || result.status === 'timeout' ? '不代表端口关闭' : result.detail || '等待端口检测';
-    const next = !settings.auto_check || (!settings.check_all && data.config.current_server !== s.id) ? '已暂停' : result.next_check ? `${Math.max(0, result.next_check - Math.floor(Date.now()/1000))} 秒后` : '即将检测';
-    return `<div class="spread"><h2>业务端口状态</h2><div class="port-actions"><button class="btn" data-probe="${escape(s.id)}" ${result.busy ? 'disabled' : ''}>检测</button><div class="port-switch">自动检测${toggle('detail-auto', settings.auto_check, '自动检测')}</div></div></div><div class="port-result"><span class="status ${escape(result.status)}">${largeStatusIcon(result.status)}</span><div><div class="port-title status ${escape(result.status)}">${s.service_protocol.toUpperCase()} ${statusLabel(s,result)}</div><div class="port-explanation"><span class="mono">${s.service_port}</span> / ${s.service_protocol.toUpperCase()} · ${escape(explanation)}</div></div></div><div class="stats"><div class="stat"><div class="lbl">最近检测</div><div class="mono">${time(result.checked_at)}</div></div><div class="stat"><div class="lbl">下次检测</div><div class="mono" ${settings.auto_check && (settings.check_all || data.config.current_server === s.id) && result.next_check ? `data-next-check="${result.next_check}"` : ''}>${next}</div></div><div class="stat"><div class="lbl">检测周期</div><div class="mono">每 ${settings.check_interval_secs} 秒</div></div></div>`;
+    const next = autoCheckLabel(s.id);
+    return `<div class="spread"><h2>业务端口状态</h2><div class="port-actions"><button class="btn" data-probe="${escape(s.id)}" ${result.busy ? 'disabled' : ''}>检测</button><div class="port-switch">自动检测${toggle('detail-auto', settings.auto_check, '自动检测')}</div></div></div><div class="port-result"><span class="status ${escape(result.status)}">${largeStatusIcon(result.status)}</span><div><div class="port-title status ${escape(result.status)}">${s.service_protocol.toUpperCase()} ${statusLabel(s,result)}</div><div class="port-explanation"><span class="mono">${s.service_port}</span> / ${s.service_protocol.toUpperCase()} · ${escape(explanation)}</div></div></div><div class="stats"><div class="stat"><div class="lbl">最近检测</div><div class="mono">${time(result.checked_at)}</div></div><div class="stat"><div class="lbl">下次检测</div><div class="mono" data-next-check="${escape(s.id)}">${next}</div></div><div class="stat"><div class="lbl">检测周期</div><div class="mono">每 ${settings.check_interval_secs} 秒</div></div></div>`;
   }
   function historyCard(s) {
     return `<h2>最近记录</h2><div class="history">${(state(s.id).history || []).map(record => `<div class="record"><time class="mono">${time(record.at)}</time><span>${escape(record.message)}</span></div>`).join('') || '<div class="hint">暂无记录</div>'}</div>`;
@@ -153,7 +155,7 @@ function startApp() {
   }
   function settings() {
     const s = settingsDraft;
-    return `<main class="content settings"><h1>设置</h1><section class="card"><h2>端口检测</h2><div class="setting-row"><div><div class="setting-title">自动检测端口状态</div><div class="setting-hint">按间隔定时检测，并在列表中显示每台服务器的状态</div></div>${toggle('auto_check', s.auto_check, '自动检测端口状态')}</div><div class="scope"><div class="lbl">检测范围</div><div class="seg">${segment('check_all', [['true','全部服务器'],['false','仅当前服务器']], String(s.check_all))}</div></div><div class="fields"><div class="field"><label class="lbl" for="interval">检测间隔（秒）</label><input id="interval" class="inp mono" type="number" min="1" max="86400" value="${s.check_interval_secs}" data-number="check_interval_secs"></div><div class="field"><label class="lbl" for="timeout">单次超时（秒）</label><input id="timeout" class="inp mono" type="number" min="1" max="120" value="${s.check_timeout_secs}" data-number="check_timeout_secs"></div></div></section><section class="card"><h2>外观</h2><div class="seg appearance">${segment('appearance', [['system','跟随系统'],['dark','深色'],['light','亮色']], s.appearance)}</div></section><section class="card"><h2>登录</h2><div class="setting-row"><div class="saved-login">${auth.remembered ? '此浏览器已保存密码' : '此浏览器未保存密码'}</div><div class="ops"><button class="btn" data-action="forget" ${!auth.remembered ? 'disabled' : ''}>清除保存的密码</button><button class="btn danger" data-action="logout">退出登录</button></div></div></section><div class="settings-actions"><button class="btn" data-action="cancel-settings">取消</button><button class="btn pri" data-action="save-settings">保存</button></div></main>`;
+    return `<main class="content settings"><h1>设置</h1><section class="card"><h2>端口检测</h2><div class="setting-row"><div><div class="setting-title">自动检测端口状态</div><div class="setting-hint">网页可见且已登录时按间隔检测，切到后台或关闭网页后暂停</div></div>${toggle('auto_check', s.auto_check, '自动检测端口状态')}</div><div class="scope"><div class="lbl">检测范围</div><div class="seg">${segment('check_all', [['true','全部服务器'],['false','仅当前服务器']], String(s.check_all))}</div></div><div class="fields"><div class="field"><label class="lbl" for="interval">检测间隔（秒）</label><input id="interval" class="inp mono" type="number" min="1" max="86400" value="${s.check_interval_secs}" data-number="check_interval_secs"></div><div class="field"><label class="lbl" for="timeout">单次超时（秒）</label><input id="timeout" class="inp mono" type="number" min="1" max="120" value="${s.check_timeout_secs}" data-number="check_timeout_secs"></div></div></section><section class="card"><h2>外观</h2><div class="seg appearance">${segment('appearance', [['system','跟随系统'],['dark','深色'],['light','亮色']], s.appearance)}</div></section><section class="card"><h2>登录</h2><div class="setting-row"><div class="saved-login">${auth.remembered ? '此浏览器已保存密码' : '此浏览器未保存密码'}</div><div class="ops"><button class="btn" data-action="forget" ${!auth.remembered ? 'disabled' : ''}>清除保存的密码</button><button class="btn danger" data-action="logout">退出登录</button></div></div></section><div class="settings-actions"><button class="btn" data-action="cancel-settings">取消</button><button class="btn pri" data-action="save-settings">保存</button></div></main>`;
   }
   function render() {
     closeMenu();
@@ -205,7 +207,7 @@ function startApp() {
     else watchProgress();
   }
   async function startKnock(ids) {
-    ids.forEach(id => startingKnocks.set(id,state(id).knock_id));
+    ids.forEach(id => { startingKnocks.set(id,state(id).knock_id); lastAutoCheck.set(id,Date.now()); });
     pendingKnocks++;
     paintRuntime();
     try {
@@ -363,7 +365,7 @@ function startApp() {
   }
   async function initialize() {
     auth = await api('/auth/status');
-    if (!auth.authenticated) { closeProgress(); data = null; if (dialog.open) dialog.close(); theme(initialTheme); render(); return; }
+    if (!auth.authenticated) { closeProgress(); clearTimeout(pollTimer); lastAutoCheck.clear(); data = null; if (dialog.open) dialog.close(); theme(initialTheme); render(); return; }
     await refresh();
     await route();
   }
@@ -545,6 +547,37 @@ function startApp() {
   document.addEventListener('click', event => {
     if (!event.target.closest('[data-menu], .menu')) closeMenu();
   });
+  function nextAutoCheck(id) {
+    return Math.max(lastAutoCheck.get(id) || 0, (state(id).checked_at || 0)*1000)
+      + data.config.settings.check_interval_secs*1000;
+  }
+  function autoCheckLabel(id) {
+    const settings = data.config.settings;
+    if (!auth?.authenticated || document.hidden || !settings.auto_check || (!settings.check_all && data.config.current_server !== id)) return '已暂停';
+    if (state(id).busy) return '任务结束后';
+    const remaining = Math.ceil((nextAutoCheck(id)-Date.now())/1000);
+    return remaining > 0 ? `${remaining} 秒后` : '即将检测';
+  }
+  async function autoCheck() {
+    if (!auth?.authenticated || !data || document.hidden || !data.config.settings.auto_check || autoChecking || polling) return;
+    const now = Date.now();
+    const settings = data.config.settings;
+    const ids = data.config.servers.filter(s => {
+      // 忙碌期间推迟下一次周期，避免敲门结束或发送失败后立即再检测。
+      if (state(s.id).busy) { lastAutoCheck.set(s.id,now); return false; }
+      return (settings.check_all || data.config.current_server === s.id) && nextAutoCheck(s.id) <= now;
+    }).map(s => s.id);
+    if (!ids.length) return;
+    autoChecking = true;
+    ids.forEach(id => lastAutoCheck.set(id,now));
+    try {
+      await api('/api/probe','POST',{ids});
+      if (!auth?.authenticated) return;
+      await refresh();
+      paintRuntime();
+    } catch (error) { if (auth?.authenticated) toast(error.message); }
+    finally { autoChecking = false; }
+  }
   function schedulePoll() {
     clearTimeout(pollTimer);
     if (!auth?.authenticated || document.hidden || polling) return;
@@ -557,8 +590,9 @@ function startApp() {
     schedulePoll();
   });
   setInterval(() => {
-    if (document.hidden) return;
-    document.querySelectorAll('[data-next-check]').forEach(el => { el.textContent = `${Math.max(0, Number(el.dataset.nextCheck) - Math.floor(Date.now()/1000))} 秒后`; });
+    if (document.hidden || !auth?.authenticated || !data) return;
+    autoCheck();
+    document.querySelectorAll('[data-next-check]').forEach(el => { el.textContent = autoCheckLabel(el.dataset.nextCheck); });
   }, 1000);
   async function syncState() {
     if (!auth?.authenticated || polling || document.hidden) return;

@@ -102,7 +102,6 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let listen =
         std::env::var("OPENSESAME_WEB_LISTEN").unwrap_or_else(|_| "127.0.0.1:18010".into());
     let listener = tokio::net::TcpListener::bind(&listen).await?;
-    let scheduler = runtime::scheduler(app.clone());
     print_banner();
     println!("Listening on {listen}");
     let result = axum::serve(
@@ -111,7 +110,6 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     )
     .with_graceful_shutdown(shutdown_signal())
     .await;
-    scheduler.abort();
     result?;
     Ok(())
 }

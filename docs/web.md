@@ -63,7 +63,7 @@ docker compose up -d --pull always
 
 打开 `http://127.0.0.1:18010` 登录。Compose 默认只向宿主机回环地址映射端口；远程访问时配置 HTTPS 反向代理，并将 `.env` 中的 `OPENSESAME_WEB_ORIGIN` 改为实际访问来源。Google 登录可在 `.env` 中配置三个对应环境变量。
 
-升级使用 `docker compose pull && docker compose up -d`。备份时先停止容器，再复制整个 `data` 目录。可将 Compose 的镜像标签固定为 `1.0.3` 以便回退。访问密码每次启动都需要提供，修改后旧会话失效。
+升级使用 `docker compose pull && docker compose up -d`。备份时先停止容器，再复制整个 `data` 目录。可将 Compose 的镜像标签固定为 `1.0.4` 以便回退。访问密码每次启动都需要提供，修改后旧会话失效。
 
 程序提供 `opensesame-web healthcheck` 命令，检查本机认证状态接口是否正常响应，不依赖 Shell。源码构建可运行 `docker build --build-arg GITHUB_SHA="$(git rev-parse HEAD)" -t opensesame:local .`，再将 Compose 镜像替换为本地标签。
 
@@ -87,7 +87,7 @@ https://knock.example.com/auth/google/callback
 - “批量设置”仅修改选中的项目；整组验证成功后在同一事务中保存。“批量开门”在服务器列表中显示总体进度与行内轨道，发送计数、节点与进度条按后端实际发送情况更新。
 - 详情页的开门路径显示真实步骤、数据包和发送完成动画，并显示业务端口、最近与下次检测时间，以及最近 10 条运行记录。运行记录保存在内存中，重启后清空。
 - 设置页支持自动检测、检测范围、间隔、超时和深浅色主题。Web 版首次打开默认亮色，之后保留已保存的外观选择。“仅当前服务器”指最后打开详情页的服务器，该选择在所有浏览器之间共享。
-- 检测和已启动的敲门任务在浏览器关闭后继续运行。编辑或删除服务器会取消该服务器的旧任务。
+- 自动检测由前端定时触发，仅在网页可见、已登录且开启自动检测时运行；切到后台、关闭网页或退出登录后暂停。回到网页后恢复检测，已发起的检测和敲门任务正常结束。Rust 后端执行实际 TCP/UDP 探测，不再独立定时检测。编辑或删除服务器会取消该服务器的旧任务。
 - 多个浏览器同时修改时，旧版本提交会被拒绝。取消并重新打开编辑窗口，或在设置页点击“取消”，确认最新值后再修改。
 
 登录页的“在此浏览器保存密码”实际保存 HttpOnly 会话 Cookie，浏览器不会保存明文访问密码。勾选后会话有效期为 30 天；未勾选时使用最长 8 小时的浏览器会话。Google 登录使用浏览器会话。设置页可清除保存状态或退出登录。修改密码、Google 配置或站点来源后，旧会话失效。
@@ -112,6 +112,8 @@ https://knock.example.com/auth/google/callback
 # 独立检查，不加载 Slint 桌面依赖
 bash scripts/build.sh check-web
 bash scripts/build.sh test-web
+# 前端自动检测的可见性、登录状态及周期验证
+node scripts/test-web-auto-check.cjs
 # Linux amd64 发行构建
 bash scripts/build.sh release-web
 # 打包及生成 SHA-256

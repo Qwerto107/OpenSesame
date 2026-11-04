@@ -92,6 +92,7 @@ jobs:
           cargo clippy --locked --no-default-features --features web --all-targets -- -D warnings
           bash scripts/build.sh test-web
           node --check web/app.js
+          node scripts/test-web-auto-check.cjs
       - name: 构建与打包
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: bash .github/scripts/package-web.sh
