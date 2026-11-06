@@ -1,6 +1,6 @@
 [package]
 name = "opensesame"
-version = "1.0.4"
+version = "1.0.5"
 edition = "2024"
 description = "跨平台 TCP / UDP 端口敲门客户端"
 build = "build.rs"
