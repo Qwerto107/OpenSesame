@@ -148,6 +148,9 @@ msgstr "单次超时须在 1～120 秒之间"
 msgid "Check {protocol} {port} after knocking"
 msgstr "敲门完成后检测 {protocol} {port}"
 
+msgid "Check"
+msgstr "检测"
+
 msgid "Checking"
 msgstr "检测中"
 

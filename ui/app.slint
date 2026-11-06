@@ -55,6 +55,7 @@ export component AppWindow inherits Window {
     in property <string> current-host;
     in property <string> knock-stage: @tr("Not knocked yet");
     in property <bool> knocking;
+    in property <bool> checking;
     in property <float> knock-progress;
     in property <string> port-state: @tr("Not checked");
     in property <string> port-detail;
@@ -110,6 +111,7 @@ export component AppWindow inherits Window {
     callback edit-server();
     callback delete-server();
     callback open-server();
+    callback check-server();
     callback open-batch();
     callback edit-batch();
     callback open-settings();
@@ -298,8 +300,10 @@ export component AppWindow inherits Window {
                         service-content := VerticalLayout {
                             padding-top: 20px; padding-bottom: 20px; padding-left: 22px; padding-right: 22px; spacing: 0px;
                             HorizontalLayout {
-                                height: 22px; Heading { text: @tr("Service port status"); vertical-alignment: center; }
+                                height: 36px; Heading { text: @tr("Service port status"); vertical-alignment: center; }
                                 Rectangle { horizontal-stretch: 1; }
+                                UiButton { text: root.checking ? @tr("Checking") : @tr("Check"); enabled: root.has-current && !root.knocking && !root.checking; clicked => { root.check-server(); } }
+                                Rectangle { width: 16px; }
                                 Label { text: @tr("Auto-check"); font-size: 13px * Palette.font-scale; vertical-alignment: center; }
                                 Rectangle { width: 10px; }
                                 Toggle { active: root.auto-check; label: @tr("Auto-check"); changed(value) => { root.toggle-auto(value); } }

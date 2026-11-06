@@ -267,6 +267,12 @@ impl App {
                 app.start_knock(&id);
             }
         });
+        action!(on_check_server, |app: &mut App| {
+            if let Some(id) = app.config.current_server.clone() {
+                // 手动检测不受自动检测开关和下次检测时间限制，复用现有任务互斥。
+                app.start_probe(&id, true);
+            }
+        });
         action!(on_open_batch, |app: &mut App| {
             let ids: Vec<_> = app
                 .config
@@ -1006,6 +1012,7 @@ impl App {
             );
             if let Some(state) = self.states.get(&server.id) {
                 ui.set_knocking(state.knock.is_some());
+                ui.set_checking(state.probe.is_some());
                 ui.set_knock_stage(stage(server, state).render(self.language).into());
                 ui.set_knock_progress(
                     state.progress as f32 / server.open_sequence.len().max(1) as f32,
