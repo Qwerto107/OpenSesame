@@ -202,20 +202,14 @@ async fn execute(app: WebState, server: Server, generation: u64, knock: bool) {
     if knock {
         let result = app
             .client
-            .execute(
-                &server.host,
-                &server.open_sequence,
-                Duration::from_millis(server.interval_ms),
-                Duration::from_secs(server.sequence_timeout_secs),
-                |step| {
-                    app.update(&server.id, generation, |state| {
-                        state.view.progress = step;
-                        state.view.knock_state = KnockState::Sending;
-                        state.view.knock_message =
-                            format!("正在发送 · {step} / {} 步", server.open_sequence.len());
-                    })
-                },
-            )
+            .execute(&server, |step| {
+                app.update(&server.id, generation, |state| {
+                    state.view.progress = step;
+                    state.view.knock_state = KnockState::Sending;
+                    state.view.knock_message =
+                        format!("正在发送 · {step} / {} 步", server.open_sequence.len());
+                })
+            })
             .await;
         let (ip, elapsed) = match result {
             Ok(sent) => sent,

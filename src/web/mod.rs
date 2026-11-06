@@ -444,6 +444,7 @@ async fn batch(State(app): State<WebState>, Json(input): Json<Edit<Batch>>) -> A
             &BatchUpdate {
                 sequence: input.value.sequence,
                 service: input.value.service,
+                tcp_flags: None,
             },
         )
         .map_err(ApiError::validation)?;

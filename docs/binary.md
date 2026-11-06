@@ -44,6 +44,28 @@ Web 包运行 `opensesame-web`，使用 SQLite，默认监听 `127.0.0.1:18010`�
 
 各压缩包包含 `opensesame-{平台}/` 目录，内有应用、`README.md`、`licenses/fonts.txt`。字体与界面资源已内嵌，不要求从解压目录作为工作目录运行。
 
+### 自定义 TCP Flags
+
+桌面版可在新增／编辑服务器时选择 `SYN / ACK / FIN / RST / PSH / URG`，支持 `SYN`、`SYN+ACK`、`FIN` 和 `XMAS`（FIN+PSH+URG）快捷组合。全部取消表示 NONE。标志位由同一服务器的 TCP 步骤共用，不影响 UDP 或业务端口检测。批量设置替换序列时同时替换 Flags，保留各服务器原有的步骤间隔和序列时间上限。
+
+Windows x64 仍只需一个 EXE。默认 SYN 不加载驱动；发送其他组合时需以管理员身份运行。程序内嵌 WinDivert 2.2.2-A，在首次使用时将官方 DLL、签名驱动和许可证释放到 `%LOCALAPPDATA%\OpenSesame\WinDivert\2.2.2-A`，之后核对缓存内容再加载。WinDivert 使用仅发送模式，不捕获或拦截其他网络流量。权限不足时直接报错，不发送部分序列，也不进入后续业务检测。
+
+WinDivert 按上游 LGPL-3.0 许可动态加载，对应源码与完整许可证已内嵌。可在 PowerShell 中提取：
+
+```powershell
+Start-Process -FilePath .\OpenSesame.exe -ArgumentList '--export-windivert-source', '.\WinDivert-source' -Wait -WindowStyle Hidden
+```
+
+使用 `OpenSesame.exe --windivert-dir "C:\path\to\compatible-windivert"` 可显式加载兼容的替代 DLL 和驱动。默认缓存校验不会限制该替代方式，允许为调试 WinDivert 修改而进行逆向工程。
+
+Linux 使用原始套接字，无需额外驱动。默认 SYN 不需要特殊权限；其他组合需要给程序授予 `CAP_NET_RAW`：
+
+```sh
+sudo setcap cap_net_raw=ep /path/to/OpenSesame
+```
+
+替换程序后需重新授权。macOS 当前仍使用默认 SYN，其他组合会明确提示不支持。
+
 | 系统 | 应用 | 启动方式 |
 | --- | --- | --- |
 | Windows | `OpenSesame.exe` | 解压后双击运行 |

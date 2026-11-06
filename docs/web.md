@@ -67,6 +67,23 @@ docker compose up -d --pull always
 
 程序提供 `opensesame-web healthcheck` 命令，检查本机认证状态接口是否正常响应，不依赖 Shell。源码构建可运行 `docker build --build-arg GITHUB_SHA="$(git rev-parse HEAD)" -t opensesame:local .`，再将 Compose 镜像替换为本地标签。
 
+### 自定义 TCP Flags
+
+新增或编辑服务器时可选择 `SYN / ACK / FIN / RST / PSH / URG`，也可使用 `SYN`、`SYN+ACK`、`FIN`、`XMAS` 快捷组合；`XMAS` 为 `FIN+PSH+URG`，全部取消表示不设置标志位（NONE）。同一服务器的 TCP 步骤共用这组标志位，UDP 步骤和业务端口检测不受影响。弹窗实时显示发送预览，详情页显示已保存的 Flags。旧数据默认使用 SYN。
+
+默认 SYN 沿用普通套接字，无需额外权限；其他组合通过 Linux 原始套接字发送，支持 IPv4 和 IPv6。权限不足会在序列发送前报错，不进入后续业务端口检测。
+
+容器镜像为程序设置 `cap_net_raw=ep` 文件能力，Compose 显式保留 `NET_RAW`，服务仍以 UID/GID `65532:65532` 运行。不要对该容器启用 `no-new-privileges`，否则文件能力无法生效。无需使用特权容器。
+
+直接运行 Linux 二进制时，可为已安装的程序授予能力：
+
+```sh
+sudo setcap cap_net_raw=ep /opt/opensesame/opensesame-web
+getcap /opt/opensesame/opensesame-web
+```
+
+替换二进制后需重新执行 `setcap`。systemd 部署也可在服务中设置 `AmbientCapabilities=CAP_NET_RAW` 和 `CapabilityBoundingSet=CAP_NET_RAW`，让服务账号获得该能力。
+
 ## Google 登录
 
 在 Google Cloud 创建 Web OAuth 客户端，将授权回调地址配置为：
@@ -114,6 +131,10 @@ bash scripts/build.sh check-web
 bash scripts/build.sh test-web
 # 前端自动检测的可见性、登录状态及周期验证
 node scripts/test-web-auto-check.cjs
+# TCP Flags 快捷组合、切换和发送预览验证
+node scripts/test-web-tcp-flags.cjs
+# 具有 CAP_NET_RAW 的 Linux 环境可额外运行回环抓包测试
+cargo test --locked --no-default-features --features web captures_custom_flags -- --ignored
 # Linux amd64 发行构建
 bash scripts/build.sh release-web
 # 打包及生成 SHA-256

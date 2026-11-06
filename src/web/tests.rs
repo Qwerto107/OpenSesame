@@ -155,6 +155,11 @@ async fn http_auth_sqlite_crud_conflicts_batch_and_loopback_knock() {
     let local = Server {
         name: "本地测试".into(),
         host: "127.0.0.1".into(),
+        tcp_flags: vec![
+            crate::model::TcpFlag::Fin,
+            crate::model::TcpFlag::Psh,
+            crate::model::TcpFlag::Urg,
+        ],
         open_sequence: vec![
             KnockStep {
                 port: udp.local_addr().unwrap().port(),
@@ -189,6 +194,21 @@ async fn http_auth_sqlite_crud_conflicts_batch_and_loopback_knock() {
         .as_str()
         .unwrap()
         .to_owned();
+    assert_eq!(
+        snapshot["config"]["servers"][0]["tcp_flags"],
+        json!(["fin", "psh", "urg"])
+    );
+    let mut duplicate = snapshot["config"]["servers"][0].clone();
+    duplicate["tcp_flags"] = json!(["syn", "syn"]);
+    assert_eq!(
+        request(reqwest::Method::PUT, &format!("/api/servers/{id}"))
+            .json(&json!({"revision":1,"value":duplicate}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        StatusCode::BAD_REQUEST
+    );
     let selected = request(reqwest::Method::PUT, "/api/selection")
         .json(&json!({"revision":1,"value":[id]}))
         .send()

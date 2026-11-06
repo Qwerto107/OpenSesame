@@ -26,6 +26,63 @@ pub struct KnockStep {
     pub protocol: Protocol,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TcpFlag {
+    Syn,
+    Ack,
+    Fin,
+    Rst,
+    Psh,
+    Urg,
+}
+
+impl TcpFlag {
+    pub const ALL: [Self; 6] = [
+        Self::Syn,
+        Self::Ack,
+        Self::Fin,
+        Self::Rst,
+        Self::Psh,
+        Self::Urg,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Syn => "SYN",
+            Self::Ack => "ACK",
+            Self::Fin => "FIN",
+            Self::Rst => "RST",
+            Self::Psh => "PSH",
+            Self::Urg => "URG",
+        }
+    }
+
+    pub fn bit(self) -> u8 {
+        match self {
+            Self::Fin => 0x01,
+            Self::Syn => 0x02,
+            Self::Rst => 0x04,
+            Self::Psh => 0x08,
+            Self::Ack => 0x10,
+            Self::Urg => 0x20,
+        }
+    }
+}
+
+pub fn tcp_flags_label(flags: &[TcpFlag]) -> String {
+    let labels: Vec<_> = TcpFlag::ALL
+        .into_iter()
+        .filter(|flag| flags.contains(flag))
+        .map(TcpFlag::label)
+        .collect();
+    if labels.is_empty() {
+        "NONE".into()
+    } else {
+        labels.join("+")
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct Server {
@@ -33,6 +90,7 @@ pub struct Server {
     pub name: String,
     pub host: String,
     pub open_sequence: Vec<KnockStep>,
+    pub tcp_flags: Vec<TcpFlag>,
     pub interval_ms: u64,
     pub sequence_timeout_secs: u64,
     pub service_port: u16,
@@ -51,6 +109,7 @@ impl Default for Server {
                 port: 7000,
                 protocol: Protocol::Tcp,
             }],
+            tcp_flags: vec![TcpFlag::Syn],
             interval_ms: 200,
             sequence_timeout_secs: 10,
             service_port: 22,
@@ -62,7 +121,16 @@ impl Default for Server {
 }
 
 impl Server {
+    pub fn tcp_flags_mask(&self) -> u8 {
+        self.tcp_flags
+            .iter()
+            .fold(0, |mask, flag| mask | flag.bit())
+    }
+
     pub fn validate(&self) -> Result<(), Message> {
+        if self.tcp_flags.len() != self.tcp_flags_mask().count_ones() as usize {
+            return Err("TCP flags cannot contain duplicates.".into());
+        }
         if self.id.trim().is_empty() {
             return Err("Server ID cannot be empty.".into());
         }
@@ -205,6 +273,7 @@ impl Config {
 #[derive(Default)]
 pub struct BatchUpdate {
     pub sequence: Option<Vec<KnockStep>>,
+    pub tcp_flags: Option<Vec<TcpFlag>>,
     pub service: Option<(u16, Protocol)>,
 }
 
@@ -222,6 +291,9 @@ pub fn apply_batch(
     if let Some(sequence) = &update.sequence {
         validate_sequence(sequence)?;
     }
+    if update.tcp_flags.is_some() && update.sequence.is_none() {
+        return Err("Update TCP flags together with the knock sequence.".into());
+    }
     if update.service.is_some_and(|service| service.0 == 0) {
         return Err("Service port must be between 1 and 65535.".into());
     }
@@ -234,6 +306,9 @@ pub fn apply_batch(
         }
         if let Some(sequence) = &update.sequence {
             server.open_sequence = sequence.clone();
+        }
+        if let Some(flags) = &update.tcp_flags {
+            server.tcp_flags = flags.clone();
         }
         if let Some((port, protocol)) = update.service {
             server.service_port = port;
@@ -266,6 +341,33 @@ pub fn new_id() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tcp_flags_default_round_trip_and_validation() {
+        let old: Server = serde_json::from_str(r#"{"name":"NAS","host":"localhost"}"#).unwrap();
+        assert_eq!(old.tcp_flags, vec![TcpFlag::Syn]);
+        for flags in [
+            vec![TcpFlag::Syn, TcpFlag::Ack],
+            vec![TcpFlag::Fin, TcpFlag::Psh, TcpFlag::Urg],
+            vec![],
+        ] {
+            let server = Server {
+                tcp_flags: flags.clone(),
+                ..old.clone()
+            };
+            server.validate().unwrap();
+            let restored: Server =
+                serde_json::from_str(&serde_json::to_string(&server).unwrap()).unwrap();
+            assert_eq!(restored.tcp_flags, flags);
+        }
+        let invalid = Server {
+            tcp_flags: vec![TcpFlag::Syn, TcpFlag::Syn],
+            ..old
+        };
+        assert!(invalid.validate().is_err());
+        assert!(serde_json::from_str::<Server>(r#"{"tcp_flags":["invalid"]}"#).is_err());
+    }
+
     #[test]
     fn old_configuration_defaults_to_system_language() {
         let config: Config = serde_json::from_str(r#"{"settings":{"auto_knock":true}}"#).unwrap();
@@ -312,6 +414,7 @@ mod tests {
             &BatchUpdate {
                 service: Some((443, Protocol::Udp)),
                 sequence: None,
+                ..BatchUpdate::default()
             },
         )
         .unwrap();
@@ -341,7 +444,8 @@ mod tests {
                 &[before.servers[0].id.clone()],
                 &BatchUpdate {
                     sequence: Some(sequence),
-                    service: None
+                    service: None,
+                    ..BatchUpdate::default()
                 }
             )
             .is_err()
@@ -359,5 +463,30 @@ mod tests {
             2
         ];
         assert!(value.validate().is_ok());
+    }
+
+    #[test]
+    fn batch_flags_update_selected_servers_atomically() {
+        let mut config = Config {
+            servers: vec![server(), server()],
+            ..Config::default()
+        };
+        let ids = vec![config.servers[0].id.clone()];
+        let other = config.servers[1].clone();
+        let update = BatchUpdate {
+            sequence: Some(config.servers[0].open_sequence.clone()),
+            tcp_flags: Some(vec![TcpFlag::Fin, TcpFlag::Psh, TcpFlag::Urg]),
+            ..BatchUpdate::default()
+        };
+        apply_batch(&mut config, &ids, &update).unwrap();
+        assert_eq!(config.servers[0].tcp_flags_mask(), 41);
+        assert_eq!(config.servers[1], other);
+        let before = config.clone();
+        let invalid = BatchUpdate {
+            tcp_flags: Some(vec![TcpFlag::Syn, TcpFlag::Syn]),
+            ..update
+        };
+        assert!(apply_batch(&mut config, &ids, &invalid).is_err());
+        assert_eq!(config, before);
     }
 }

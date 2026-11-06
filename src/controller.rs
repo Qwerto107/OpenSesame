@@ -1,4 +1,4 @@
-use crate::{AppWindow, BatchRow, Palette, ServerRow, StepRow};
+use crate::{AppWindow, BatchRow, FlagRow, Palette, ServerRow, StepRow};
 use opensesame::{
     fonts,
     i18n::{self, Message},
@@ -321,11 +321,38 @@ impl App {
         });
         {
             let app = app.clone();
+            ui.on_toggle_tcp_flag(move |index| {
+                let app = app.borrow();
+                let Some(flag) = model::TcpFlag::ALL.get(index as usize) else {
+                    return;
+                };
+                let mut flags = app.read_flags();
+                if flags.contains(flag) {
+                    flags.retain(|value| value != flag);
+                } else {
+                    flags.push(*flag);
+                }
+                app.set_flags(&flags);
+            });
+        }
+        {
+            let app = app.clone();
+            ui.on_preset_tcp_flags(move |mask| {
+                let flags: Vec<_> = model::TcpFlag::ALL
+                    .into_iter()
+                    .filter(|flag| mask as u8 & flag.bit() != 0)
+                    .collect();
+                app.borrow().set_flags(&flags);
+            });
+        }
+        {
+            let app = app.clone();
             ui.on_step_port(move |index, value| {
                 let app = app.borrow();
                 if let Some(mut row) = app.form_steps.row_data(index as usize) {
                     row.port = value;
                     app.form_steps.set_row_data(index as usize, row);
+                    app.refresh_sequence_preview();
                 }
             });
         }
@@ -336,6 +363,7 @@ impl App {
                 if let Some(mut row) = app.form_steps.row_data(index as usize) {
                     row.udp = udp;
                     app.form_steps.set_row_data(index as usize, row);
+                    app.refresh_sequence_preview();
                 }
             });
         }
@@ -352,6 +380,7 @@ impl App {
                 {
                     rows.swap(index as usize, target as usize);
                     app.form_steps.set_vec(rows);
+                    app.refresh_sequence_preview();
                 }
             });
         }
@@ -361,6 +390,7 @@ impl App {
                 let app = app.borrow();
                 if index >= 0 && (index as usize) < app.form_steps.row_count() {
                     app.form_steps.remove(index as usize);
+                    app.refresh_sequence_preview();
                 }
             });
         }
@@ -446,6 +476,47 @@ impl App {
             .collect()
     }
 
+    fn read_flags(&self) -> Vec<model::TcpFlag> {
+        let Some(ui) = self.ui.upgrade() else {
+            return vec![];
+        };
+        model::TcpFlag::ALL
+            .into_iter()
+            .zip(ui.get_form_tcp_flags().iter())
+            .filter_map(|(flag, row)| row.active.then_some(flag))
+            .collect()
+    }
+
+    fn set_flags(&self, flags: &[model::TcpFlag]) {
+        if let Some(ui) = self.ui.upgrade() {
+            ui.set_form_tcp_flags(ModelRc::new(VecModel::from(
+                model::TcpFlag::ALL
+                    .into_iter()
+                    .map(|flag| FlagRow {
+                        label: flag.label().into(),
+                        active: flags.contains(&flag),
+                    })
+                    .collect::<Vec<_>>(),
+            )));
+            self.refresh_sequence_preview();
+        }
+    }
+
+    fn refresh_sequence_preview(&self) {
+        if let Some(ui) = self.ui.upgrade() {
+            let sequence = self
+                .form_steps
+                .iter()
+                .map(|step| format!("{}:{}", if step.udp { "udp" } else { "tcp" }, step.port))
+                .collect::<Vec<_>>()
+                .join(" → ");
+            let flags = model::tcp_flags_label(&self.read_flags())
+                .to_lowercase()
+                .replace('+', ",");
+            ui.set_form_sequence_preview(msg!("Will send: {sequence} · tcpflags={flags}", "sequence" => sequence, "flags" => flags).render(self.language).into());
+        }
+    }
+
     fn open_editor(&mut self, editing: bool) {
         let server = if editing {
             let Some(server) = self.current() else {
@@ -461,6 +532,7 @@ impl App {
         };
         self.editing_id = editing.then(|| server.id.clone());
         self.set_steps(&server.open_sequence);
+        self.set_flags(&server.tcp_flags);
         if let Some(ui) = self.ui.upgrade() {
             ui.set_editing(editing);
             ui.set_form_name(server.name.into());
@@ -483,6 +555,7 @@ impl App {
             name: ui.get_form_name().trim().into(),
             host: ui.get_form_host().trim().into(),
             open_sequence: self.read_steps()?,
+            tcp_flags: self.read_flags(),
             interval_ms: parse_number(&ui.get_form_gap(), "Step interval")?,
             sequence_timeout_secs: parse_number(&ui.get_form_limit(), "Sequence timeout")?,
             service_port: parse_port(&ui.get_form_port())?,
@@ -541,6 +614,7 @@ impl App {
             return;
         };
         self.set_steps(&server.open_sequence);
+        self.set_flags(&server.tcp_flags);
         if let Some(ui) = self.ui.upgrade() {
             ui.set_form_port(server.service_port.to_string().into());
             ui.set_form_udp(server.service_protocol == Protocol::Udp);
@@ -554,6 +628,7 @@ impl App {
     fn save_batch(&mut self) -> Result<(), Message> {
         let ui = self.ui.upgrade().ok_or("The window is closed.")?;
         let update = BatchUpdate {
+            tcp_flags: ui.get_update_sequence().then(|| self.read_flags()),
             sequence: if ui.get_update_sequence() {
                 Some(self.read_steps()?)
             } else {
@@ -766,19 +841,13 @@ impl App {
                 return;
             };
             let result = client
-                .execute(
-                    &server.host,
-                    &server.open_sequence,
-                    Duration::from_millis(server.interval_ms),
-                    Duration::from_secs(server.sequence_timeout_secs),
-                    |step| {
-                        let _ = sender.send(Event::Progress {
-                            id: id.clone(),
-                            generation,
-                            step,
-                        });
-                    },
-                )
+                .execute(&server, |step| {
+                    let _ = sender.send(Event::Progress {
+                        id: id.clone(),
+                        generation,
+                        step,
+                    });
+                })
                 .await;
             let _ = sender.send(Event::Knocked {
                 id,
@@ -923,6 +992,7 @@ impl App {
     }
 
     pub fn refresh(&self) {
+        self.refresh_sequence_preview();
         let Some(ui) = self.ui.upgrade() else {
             return;
         };
@@ -993,6 +1063,7 @@ impl App {
         let current = self.current();
         ui.set_has_current(current.is_some());
         if let Some(server) = current {
+            ui.set_current_tcp_flags(model::tcp_flags_label(&server.tcp_flags).into());
             ui.set_current_name(server.name.clone().into());
             ui.set_current_host(server.host.clone().into());
             ui.set_sequence(ModelRc::new(VecModel::from(

@@ -134,7 +134,7 @@ function startApp() {
     const hasRun = !!result.knock_id;
     return `<div class="spread"><div><h2>开门序列</h2><div class="knock-message ${active ? 'sending-text' : ''}" data-knock-message>${escape(result.knock_message || `共 ${s.open_sequence.length} 步 · 间隔 ${s.interval_ms} ms`)}</div></div><button class="btn pri knock-button running-button" data-knock="${escape(s.id)}" ${result.busy ? 'disabled' : ''}>${knockButtonLabel(result)}</button></div>
       ${hasRun ? `<div class="path-viewport"><div class="send-path" data-server="${escape(s.id)}" data-painted-progress="${result.progress || 0}"><div class="path-endpoint"><div class="path-source">${logo}</div><div class="endpoint-label">OpenSesame</div></div><div class="path-track"><div class="path-base"></div>${s.open_sequence.slice(1).map((_, index) => `<div class="path-segment" data-segment="${index}"></div>`).join('')}<div class="path-packet" aria-hidden="true"></div>${s.open_sequence.map((step,index) => `<div class="path-node mono" data-step="${index+1}">${index+1}</div><div class="path-label" data-label="${index}"><div class="mono">${step.port}</div>${tag(step.protocol)}</div>`).join('')}</div><div class="path-endpoint"><div class="path-lock" data-phase="${result.knock_state}" aria-label="等待序列发送完成"><span class="lock-closed">${lockIcon(false)}</span><span class="lock-open">${lockIcon(true)}</span></div><div class="endpoint-label">${escape(s.name)}</div></div></div></div>` : `<div class="sequence">${s.open_sequence.map(step => `<span class="chip"><span class="mono">${step.port}</span>${tag(step.protocol)}</span>`).join('<span class="muted">→</span>')}</div>`}
-      <div class="send-progress"><div class="shim" data-send-progress></div></div><div class="hint knock-hint" ${active ? 'hidden' : ''}>“已发送”不等于开门成功，请以下方端口检测结果为准。</div>`;
+      <div class="hint flags-summary">TCP Flags：<span class="mono">${flagsLabel(s.tcp_flags || ['syn'])}</span></div><div class="send-progress"><div class="shim" data-send-progress></div></div><div class="hint knock-hint" ${active ? 'hidden' : ''}>“已发送”不等于开门成功，请以下方端口检测结果为准。</div>`;
   }
   function portCard(s) {
     const result = state(s.id);
@@ -390,11 +390,28 @@ function startApp() {
   }
   const field = (name,label,value,type = 'text',attrs = '') => `<div><label class="lbl" for="${name}">${label}</label><input class="inp" id="${name}" name="${name}" type="${type}" value="${escape(value)}" ${attrs}></div>`;
   function stepRow(step, index) {
-    return `<div class="step-row"><span class="ix">${index+1}</span><input class="inp mono" type="number" min="1" max="65535" value="${step.port}" aria-label="第 ${index+1} 步端口" required><select class="inp" aria-label="第 ${index+1} 步协议"><option value="tcp" ${step.protocol === 'tcp' ? 'selected' : ''}>TCP</option><option value="udp" ${step.protocol === 'udp' ? 'selected' : ''}>UDP</option></select><button class="btn sm" type="button" data-action="remove-step" aria-label="删除第 ${index+1} 步">×</button></div>`;
+    return `<div class="step-row"><span class="ix mono">${index+1}</span><input class="inp mono" type="number" min="1" max="65535" value="${step.port}" aria-label="第 ${index+1} 步端口" required><div class="step-protocol"><select hidden aria-label="第 ${index+1} 步协议"><option value="tcp" ${step.protocol === 'tcp' ? 'selected' : ''}>TCP</option><option value="udp" ${step.protocol === 'udp' ? 'selected' : ''}>UDP</option></select>${['tcp','udp'].map(protocol => `<button type="button" data-step-protocol="${protocol}" aria-pressed="${step.protocol === protocol}">${protocol.toUpperCase()}</button>`).join('')}</div><div class="step-ops"><button class="btn sm" type="button" data-action="move-step" data-offset="-1" aria-label="上移第 ${index+1} 步" ${index === 0 ? 'disabled' : ''}>↑</button><button class="btn sm" type="button" data-action="move-step" data-offset="1" aria-label="下移第 ${index+1} 步">↓</button><button class="btn sm" type="button" data-action="remove-step" aria-label="删除第 ${index+1} 步">×</button></div></div>`;
+  }
+  const tcpFlagNames = ['syn','ack','fin','rst','psh','urg'];
+  function flagsLabel(flags, separator = '+') {
+    return tcpFlagNames.filter(flag => flags.includes(flag)).map(flag => flag.toUpperCase()).join(separator) || 'NONE';
+  }
+  function flagsEditor(flags) {
+    return `<section class="tcp-flags"><div class="spread flags-heading"><div class="lbl">TCP Flags（整条序列共用）</div><div class="flag-presets">${['SYN','SYN+ACK','FIN','XMAS'].map(name => `<button type="button" data-flags-preset="${name}">${name}</button>`).join('')}</div></div><div class="flag-options" role="group" aria-label="TCP Flags">${tcpFlagNames.map(flag => `<button class="fl ${flags.includes(flag) ? 'on' : ''}" type="button" data-tcp-flag="${flag}" aria-pressed="${flags.includes(flag)}">${flag.toUpperCase()}</button>`).join('')}</div><div class="hint">仅作用于 TCP 步骤，UDP 步骤不受影响。</div></section><div class="send-preview mono" data-sequence-preview></div><div class="hint">自定义标志位需要服务端具备发送原始数据包的权限。</div>`;
+  }
+  function readFlags() {
+    return [...dialog.querySelectorAll('[data-tcp-flag][aria-pressed="true"]')].map(button => button.dataset.tcpFlag);
+  }
+  function updateSequencePreview() {
+    const preview = dialog.querySelector('[data-sequence-preview]');
+    if (!preview) return;
+    const sequence = readSteps().map(step => `${step.protocol}:${step.port || '—'}`).join(' → ');
+    preview.textContent = `将发送：${sequence} · tcpflags=${flagsLabel(readFlags(), ',').toLowerCase()}`;
   }
   function editor(id) {
-    const s = id ? server(id) : {name:'',host:'',open_sequence:[{port:7000,protocol:'tcp'}],interval_ms:200,sequence_timeout_secs:10,service_port:22,service_protocol:'tcp',check_interval_secs:30,check_timeout_secs:3};
-    showModal(`<form id="server-form" data-id="${id || ''}"><div class="modal-head"><h2>${id ? '编辑服务器' : '新增服务器'}</h2></div><div class="modal-grid">${field('name','名称',s.name,'text','required maxlength="256"')}${field('host','IP 地址或主机名',s.host,'text','required maxlength="253"')}${field('service_port','业务端口',s.service_port,'number','required min="1" max="65535"')}<div><label class="lbl" for="service_protocol">业务协议</label><select class="inp" id="service_protocol" name="service_protocol"><option value="tcp" ${s.service_protocol === 'tcp' ? 'selected' : ''}>TCP</option><option value="udp" ${s.service_protocol === 'udp' ? 'selected' : ''}>UDP</option></select></div>${field('interval_ms','步骤间隔（毫秒）',s.interval_ms,'number','required min="10" max="60000"')}${field('sequence_timeout_secs','序列超时（秒）',s.sequence_timeout_secs,'number','required min="1" max="300"')}</div><section class="modal-section"><h2>开门序列</h2><div id="steps">${s.open_sequence.map(stepRow).join('')}</div><button class="btn modal-section" type="button" data-action="add-step">+ 添加步骤</button></section><div class="error-message" role="alert" hidden></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">取消</button><button class="btn pri" type="submit">保存</button></div></form>`);
+    const s = id ? server(id) : {name:'',host:'',open_sequence:[{port:7000,protocol:'tcp'}],tcp_flags:['syn'],interval_ms:200,sequence_timeout_secs:10,service_port:22,service_protocol:'tcp',check_interval_secs:30,check_timeout_secs:3};
+    showModal(`<form id="server-form" data-id="${id || ''}"><div class="server-modal-head"><h2>${id ? '编辑服务器' : '新增服务器'}</h2><button class="btn sm" type="button" data-action="close-modal" aria-label="关闭">×</button></div><div class="server-modal-body"><section class="server-editor-card"><h2>基本信息</h2><div class="modal-grid">${field('name','显示名称',s.name,'text','required maxlength="256"')}${field('host','服务器地址',s.host,'text','required maxlength="253"')}</div></section><section class="server-editor-card"><div class="spread"><h2>开门序列</h2><button class="btn" type="button" data-action="add-step">+ 添加步骤</button></div><div id="steps">${s.open_sequence.map(stepRow).join('')}</div>${flagsEditor(s.tcp_flags || ['syn'])}<div class="modal-grid timing-fields">${field('interval_ms','步骤间隔（毫秒）',s.interval_ms,'number','required min="10" max="60000"')}${field('sequence_timeout_secs','序列时间上限（秒）',s.sequence_timeout_secs,'number','required min="1" max="300"')}</div></section><section class="server-editor-card"><h2>业务检测</h2><div class="modal-grid">${field('service_port','业务端口',s.service_port,'number','required min="1" max="65535"')}<div><label class="lbl" for="service_protocol">检测协议</label><select class="inp" id="service_protocol" name="service_protocol"><option value="tcp" ${s.service_protocol === 'tcp' ? 'selected' : ''}>TCP</option><option value="udp" ${s.service_protocol === 'udp' ? 'selected' : ''}>UDP</option></select></div></div></section><div class="error-message" role="alert" hidden></div></div><div class="modal-footer server-modal-footer"><button class="btn" type="button" data-action="close-modal">取消</button><button class="btn pri" type="submit">保存</button></div></form>`);
+    updateSequencePreview();
   }
   function readSteps() { return [...dialog.querySelectorAll('.step-row')].map(row => ({port:Number(row.querySelector('input').value),protocol:row.querySelector('select').value})); }
   function batchEditor() {
@@ -419,7 +436,7 @@ function startApp() {
         form.reset(); await initialize();
       } else if (form.id === 'server-form') {
         const id = form.dataset.id;
-        const value = {...(id ? server(id) : {}),...values,open_sequence:readSteps()};
+        const value = {...(id ? server(id) : {}),...values,open_sequence:readSteps(),tcp_flags:readFlags()};
         for (const key of ['service_port','interval_ms','sequence_timeout_secs']) value[key] = Number(value[key]);
         await edit(id ? `servers/${encodeURIComponent(id)}` : 'servers', value, id ? 'PUT' : 'POST', modalRevision);
         dialog.close(); render(); toast('服务器已保存');
@@ -440,15 +457,18 @@ function startApp() {
   document.addEventListener('change', async event => {
     const target = event.target;
     try {
+      if (target.closest('#server-form')) updateSequencePreview();
       if (target.id === 'select-all' || target.dataset.select) {
         const ids = new Set(data.config.checked_servers);
-        if (target.id === 'select-all') { ids.clear(); if (target.checked) data.config.servers.forEach(s => ids.add(s.id)); }
+        if (target.closest('#server-form')) updateSequencePreview();
+      if (target.id === 'select-all') { ids.clear(); if (target.checked) data.config.servers.forEach(s => ids.add(s.id)); }
         else if (target.checked) ids.add(target.dataset.select); else ids.delete(target.dataset.select);
         await edit('selection', [...ids]); render();
       }
     } catch (error) { toast(error.message); render(); }
   });
   document.addEventListener('input', event => {
+    if (event.target.closest('#server-form')) updateSequencePreview();
     if (event.target.dataset.number && settingsDraft) settingsDraft[event.target.dataset.number] = Number(event.target.value);
   });
 
@@ -490,7 +510,20 @@ function startApp() {
     const target = event.target.closest('button, [data-action]');
     if (!target || target.disabled) return;
     try {
-      if (target.dataset.knock) {
+      if (target.dataset.stepProtocol) {
+        const row = target.closest('.step-row');
+        row.querySelector('select').value = target.dataset.stepProtocol;
+        row.querySelectorAll('[data-step-protocol]').forEach(button => button.setAttribute('aria-pressed', String(button === target)));
+        updateSequencePreview();
+      } else if (target.dataset.tcpFlag || target.dataset.flagsPreset) {
+        const presets = {SYN:['syn'],'SYN+ACK':['syn','ack'],FIN:['fin'],XMAS:['fin','psh','urg']};
+        const selected = target.dataset.flagsPreset ? presets[target.dataset.flagsPreset] : null;
+        for (const button of dialog.querySelectorAll('[data-tcp-flag]')) {
+          const on = selected ? selected.includes(button.dataset.tcpFlag) : button === target ? button.getAttribute('aria-pressed') !== 'true' : button.getAttribute('aria-pressed') === 'true';
+          button.setAttribute('aria-pressed', String(on)); button.classList.toggle('on', on);
+        }
+        updateSequencePreview();
+      } else if (target.dataset.knock) {
         target.disabled = true;
         await startKnock([target.dataset.knock]);
       } else if (target.dataset.edit) editor(target.dataset.edit);
@@ -526,13 +559,21 @@ function startApp() {
           case 'add-step': {
             const steps = readSteps();
             if (steps.length >= 256) throw new Error('最多支持 256 个步骤');
-            steps.push({port:7000,protocol:'tcp'}); dialog.querySelector('#steps').innerHTML = steps.map(stepRow).join(''); break;
+            steps.push({port:7000,protocol:'tcp'}); dialog.querySelector('#steps').innerHTML = steps.map(stepRow).join(''); updateSequencePreview(); break;
+          }
+          case 'move-step': {
+            const steps = readSteps();
+            const index = [...dialog.querySelectorAll('.step-row')].indexOf(target.closest('.step-row'));
+            const next = index + Number(target.dataset.offset);
+            if (next < 0 || next >= steps.length) break;
+            [steps[index], steps[next]] = [steps[next], steps[index]];
+            dialog.querySelector('#steps').innerHTML = steps.map(stepRow).join(''); updateSequencePreview(); break;
           }
           case 'remove-step': {
             const index = [...dialog.querySelectorAll('.step-row')].indexOf(target.closest('.step-row'));
             const steps = readSteps();
             if (steps.length === 1) throw new Error('至少保留一个敲门步骤');
-            steps.splice(index,1); dialog.querySelector('#steps').innerHTML = steps.map(stepRow).join(''); break;
+            steps.splice(index,1); dialog.querySelector('#steps').innerHTML = steps.map(stepRow).join(''); updateSequencePreview(); break;
           }
           case 'save-settings':
             await edit('settings', settingsDraft, 'PUT', draftRevision); settingsDraft = structuredClone(data.config.settings); draftRevision = data.revision; render(); toast('设置已保存'); break;

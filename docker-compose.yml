@@ -5,6 +5,8 @@ services:
     image: ghcr.io/qwerto107/opensesame:latest
     container_name: opensesame
     restart: unless-stopped
+    cap_add:
+      - NET_RAW
     ports:
       - "127.0.0.1:18010:18010"
     env_file:

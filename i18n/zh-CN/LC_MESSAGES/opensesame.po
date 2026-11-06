@@ -154,6 +154,54 @@ msgstr "检测"
 msgid "Checking"
 msgstr "检测中"
 
+msgid "TCP Flags (shared by the sequence)"
+msgstr "TCP Flags（整条序列共用）"
+
+msgid "Only TCP steps use these flags. UDP steps are unchanged."
+msgstr "仅作用于 TCP 步骤，UDP 步骤不受影响。"
+
+msgid "Custom flags require Administrator privileges on Windows or CAP_NET_RAW on Linux."
+msgstr "自定义标志位在 Windows 上需要管理员权限，在 Linux 上需要 CAP_NET_RAW 权限。"
+
+msgid "Replace the sequence and TCP flags. Each server keeps its step interval and timeout."
+msgstr "整体替换原序列（含 TCP Flags）；步骤间隔与时间上限保持各服务器原值。"
+
+msgid "Will send: {sequence} · tcpflags={flags}"
+msgstr "将发送：{sequence} · tcpflags={flags}"
+
+msgid "Update TCP flags together with the knock sequence."
+msgstr "TCP Flags 需与敲门序列一起更新。"
+
+msgid "Run OpenSesame as Administrator to send custom TCP flags on Windows."
+msgstr "请以管理员身份运行 OpenSesame，以发送自定义 TCP 标志位。"
+
+msgid "The WinDivert library is incompatible."
+msgstr "WinDivert 库不兼容。"
+
+msgid "Could not calculate the TCP packet checksum."
+msgstr "无法计算 TCP 数据包校验和。"
+
+msgid "The WinDivert cache is invalid. Remove it and try again."
+msgstr "WinDivert 缓存无效，请删除缓存后重试。"
+
+msgid "TCP flags cannot contain duplicates."
+msgstr "TCP 标志位不能重复"
+
+msgid "Custom TCP flags require CAP_NET_RAW permission on the server."
+msgstr "自定义 TCP 标志位需要服务端具备 CAP_NET_RAW 权限"
+
+msgid "Custom TCP flags are only supported on Linux."
+msgstr "自定义 TCP 标志位仅支持 Linux"
+
+msgid "Custom TCP flags are not supported on this platform."
+msgstr "当前平台不支持自定义 TCP 标志位。"
+
+msgid "Could not determine the TCP source address."
+msgstr "无法确定 TCP 源地址"
+
+msgid "The TCP packet was not fully sent."
+msgstr "TCP 数据包未完整发送"
+
 msgid "Choose at least one setting to update."
 msgstr "请至少选择一个修改项目"
 

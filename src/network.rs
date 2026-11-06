@@ -14,6 +14,13 @@ use tokio::{
     time::{sleep, timeout},
 };
 
+#[cfg(target_os = "linux")]
+mod raw_tcp;
+#[cfg(all(windows, feature = "desktop"))]
+mod windivert;
+#[cfg(all(windows, feature = "desktop"))]
+pub use windivert::export_source as export_windivert_source;
+
 #[derive(Clone, Default)]
 pub struct Client {
     targets: Arc<Mutex<HashMap<IpAddr, Weak<AsyncMutex<()>>>>>,
@@ -41,19 +48,28 @@ impl Client {
 
     pub async fn execute(
         &self,
-        host: &str,
-        steps: &[KnockStep],
-        interval: Duration,
-        limit: Duration,
+        server: &Server,
         progress: impl FnMut(usize),
     ) -> Result<(IpAddr, Duration), Message> {
+        let host = &server.host;
+        let steps = &server.open_sequence;
+        let interval = Duration::from_millis(server.interval_ms);
+        let limit = Duration::from_secs(server.sequence_timeout_secs);
         let first = steps.first().ok_or("The knock sequence cannot be empty.")?;
         let target = timeout(limit, resolve(host, first.port))
             .await
             .map_err(|_| "Hostname resolution timed out.")??;
         // 同一 IP 的所有配置共用锁，防止其他序列或业务检测包打断 knockd 的匹配。
         let _guard = self.target_lock(target.ip()).await;
-        execute_sequence(&target.ip().to_string(), steps, interval, limit, progress).await
+        execute_sequence_with_flags(
+            &target.ip().to_string(),
+            steps,
+            interval,
+            limit,
+            server.tcp_flags_mask(),
+            progress,
+        )
+        .await
     }
 
     pub async fn probe(&self, server: &Server, pinned: Option<IpAddr>) -> ProbeResult {
@@ -162,16 +178,52 @@ pub async fn execute_sequence(
     steps: &[KnockStep],
     interval: Duration,
     limit: Duration,
+    progress: impl FnMut(usize),
+) -> Result<(IpAddr, Duration), Message> {
+    execute_sequence_with_flags(host, steps, interval, limit, 0x02, progress).await
+}
+
+async fn execute_sequence_with_flags(
+    host: &str,
+    steps: &[KnockStep],
+    interval: Duration,
+    limit: Duration,
+    flags: u8,
     mut progress: impl FnMut(usize),
 ) -> Result<(IpAddr, Duration), Message> {
     let started = Instant::now();
     let operation = async {
         let first = steps.first().ok_or("The knock sequence cannot be empty.")?;
         let destination = resolve(host, first.port).await?;
+        let custom = flags != 0x02 && steps.iter().any(|step| step.protocol == Protocol::Tcp);
+        // 发送任何步骤前检查原始套接字权限，避免权限不足时仅发送了部分 UDP 步骤。
+        #[cfg(target_os = "linux")]
+        let raw = custom
+            .then(|| raw_tcp::Sender::new(destination))
+            .transpose()?;
+        #[cfg(all(windows, feature = "desktop"))]
+        let raw = custom
+            .then(|| windivert::Sender::new(destination))
+            .transpose()?;
+        #[cfg(not(any(target_os = "linux", all(windows, feature = "desktop"))))]
+        if custom {
+            return Err("Custom TCP flags are not supported on this platform.".into());
+        }
         for (index, step) in steps.iter().enumerate() {
             let target = SocketAddr::new(destination.ip(), step.port);
             let socket = match step.protocol {
-                Protocol::Tcp => Some(start_tcp_knock(target)?),
+                Protocol::Tcp => {
+                    #[cfg(any(target_os = "linux", all(windows, feature = "desktop")))]
+                    if let Some(raw) = &raw {
+                        raw.send(step.port, flags)?;
+                        progress(index + 1);
+                        if index + 1 < steps.len() {
+                            sleep(interval).await;
+                        }
+                        continue;
+                    }
+                    Some(start_tcp_knock(target)?)
+                }
                 Protocol::Udp => {
                     let socket = UdpSocket::bind(bind_address(target))
                         .await
@@ -320,6 +372,49 @@ fn udp_error(error: io::Error) -> ProbeResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn custom_flags_fail_before_udp_when_raw_sockets_are_unavailable() {
+        // 普通测试不安装驱动；管理员环境的真实发包验证由显式集成测试完成。
+        #[cfg(all(windows, feature = "desktop"))]
+        if unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() } != 0 {
+            return;
+        }
+        #[cfg(target_os = "linux")]
+        if raw_tcp::Sender::new("127.0.0.1:7000".parse().unwrap()).is_ok() {
+            return;
+        }
+        let udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server = Server {
+            host: "127.0.0.1".into(),
+            tcp_flags: vec![crate::model::TcpFlag::Ack],
+            open_sequence: vec![
+                KnockStep {
+                    port: udp.local_addr().unwrap().port(),
+                    protocol: Protocol::Udp,
+                },
+                KnockStep {
+                    port: 7000,
+                    protocol: Protocol::Tcp,
+                },
+            ],
+            ..Server::default()
+        };
+        let mut progress = vec![];
+        assert!(
+            Client::default()
+                .execute(&server, |step| progress.push(step))
+                .await
+                .is_err()
+        );
+        assert!(progress.is_empty());
+        assert!(
+            timeout(Duration::from_millis(50), udp.recv_from(&mut [0; 1]))
+                .await
+                .is_err()
+        );
+    }
+
     fn local(port: u16, protocol: Protocol) -> Server {
         Server {
             name: "本地测试".into(),
@@ -457,10 +552,13 @@ mod tests {
         let knock = tokio::spawn(async move {
             sender
                 .execute(
-                    "127.0.0.1",
-                    &steps,
-                    Duration::from_millis(150),
-                    Duration::from_secs(2),
+                    &Server {
+                        host: "127.0.0.1".into(),
+                        open_sequence: steps,
+                        interval_ms: 150,
+                        sequence_timeout_secs: 2,
+                        ..Server::default()
+                    },
                     |_| {},
                 )
                 .await

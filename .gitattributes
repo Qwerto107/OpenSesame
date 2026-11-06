@@ -5,3 +5,4 @@
 *.toml text eol=lf
 *.md text eol=lf
 *.po text eol=lf
+third_party/windivert/LICENSE.txt -text whitespace=-blank-at-eof

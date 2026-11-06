@@ -7,6 +7,7 @@ import "../assets/fonts/JetBrainsMono.ttf";
 export { Palette }
 export struct ServerRow { id: string, name: string, host: string, service: string, udp: bool, checked: bool, selected: bool, status: string, kind: int }
 export struct StepRow { port: string, udp: bool }
+export struct FlagRow { label: string, active: bool }
 export struct BatchRow { name: string, host: string, stage: string, status: string, detail: string, progress: float, kind: int }
 
 component StepEditor inherits Rectangle {
@@ -34,6 +35,46 @@ component StepEditor inherits Rectangle {
     }
 }
 
+component FlagPicker inherits Rectangle {
+    in property <[FlagRow]> flags;
+    in property <bool> presets;
+    callback toggle(int);
+    callback preset(int);
+    height: root.presets ? 96px : 28px;
+    background: transparent;
+    VerticalLayout {
+        spacing: 10px;
+        if root.presets: HorizontalLayout {
+            height: 20px;
+            Label { text: root.presets ? @tr("TCP Flags (shared by the sequence)") : "TCP Flags"; vertical-alignment: center; }
+            Rectangle { horizontal-stretch: 1; }
+            if root.presets: HorizontalLayout {
+                spacing: 12px;
+                for preset in [{ label: "SYN", mask: 2 }, { label: "SYN+ACK", mask: 18 }, { label: "FIN", mask: 1 }, { label: "XMAS", mask: 41 }]: Rectangle {
+                    width: text.preferred-width;
+                    background: transparent;
+                    text := Text { text: preset.label; color: Palette.accent-text; font-size: 12px * Palette.font-scale; vertical-alignment: center; }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.preset(preset.mask); } }
+                }
+            }
+        }
+        HorizontalLayout {
+            height: 28px; spacing: 8px; alignment: start;
+            if !root.presets: Label { text: "TCP Flags"; width: 70px; vertical-alignment: center; }
+            for flag[i] in root.flags: Rectangle {
+                width: caption.preferred-width + 20px; height: 28px;
+                background: flag.active ? Palette.segment : Palette.inset;
+                border-color: flag.active ? Palette.accent-text : Palette.control-border;
+                border-width: 1px; border-radius: 7px;
+                accessible-role: checkbox; accessible-label: flag.label; accessible-checked: flag.active;
+                caption := Text { text: flag.label; color: flag.active ? Palette.accent-text : Palette.muted; font-family: "JetBrains Mono"; font-size: 12px * Palette.font-scale; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { root.toggle(i); } }
+            }
+        }
+        if root.presets: Label { text: @tr("Only TCP steps use these flags. UDP steps are unchanged."); }
+    }
+}
+
 export component AppWindow inherits Window {
     title: "OpenSesame";
     icon: @image-url("../assets/icon.svg");
@@ -48,6 +89,7 @@ export component AppWindow inherits Window {
 
     in property <[ServerRow]> servers;
     in property <[StepRow]> sequence;
+    in property <string> current-tcp-flags: "SYN";
     in property <[BatchRow]> batch-rows;
     in property <int> selected-count;
     in property <bool> has-current;
@@ -77,6 +119,8 @@ export component AppWindow inherits Window {
     in-out property <string> form-name;
     in-out property <string> form-host;
     in-out property <[StepRow]> form-steps;
+    in property <[FlagRow]> form-tcp-flags;
+    in property <string> form-sequence-preview;
     in-out property <string> form-gap: "200";
     in-out property <string> form-limit: "10";
     in-out property <string> form-port: "22";
@@ -124,6 +168,8 @@ export component AppWindow inherits Window {
     callback step-protocol(int, bool);
     callback move-step(int, int);
     callback remove-step(int);
+    callback toggle-tcp-flag(int);
+    callback preset-tcp-flags(int);
 
     VerticalLayout {
         spacing: 0px;
@@ -289,6 +335,8 @@ export component AppWindow inherits Window {
                                     }
                                 }
                             }
+                            Rectangle { height: 14px; }
+                            Label { text: "TCP Flags: " + root.current-tcp-flags; font-family: "JetBrains Mono"; }
                             Rectangle { height: 16px; }
                             Rectangle { height: 4px; border-radius: 2px; background: Palette.border; Rectangle { x: 0px; y: 0px; width: parent.width * root.knock-progress; border-radius: 2px; background: Palette.accent; } }
                             Rectangle { height: 10px; }
@@ -486,11 +534,22 @@ export component AppWindow inherits Window {
                                 move-step(index, direction) => { root.move-step(index, direction); }
                                 remove-step(index) => { root.remove-step(index); }
                             }
+                            if root.dialog == 1 || root.update-sequence: VerticalLayout {
+                                spacing: 12px;
+                                Rectangle { height: 1px; background: Palette.border; }
+                                FlagPicker { flags: root.form-tcp-flags; presets: root.dialog == 1; toggle(index) => { root.toggle-tcp-flag(index); } preset(mask) => { root.preset-tcp-flags(mask); } }
+                                if root.dialog == 1: Rectangle {
+                                    height: max(44px, preview-text.preferred-height + 20px);
+                                    border-width: 1px; border-color: Palette.control-border; border-radius: 10px; background: Palette.inset;
+                                    preview-text := Label { x: 12px; y: 10px; width: parent.width - 24px; text: root.form-sequence-preview; font-family: "JetBrains Mono"; wrap: word-wrap; }
+                                }
+                                if root.dialog == 1: Label { text: @tr("Custom flags require Administrator privileges on Windows or CAP_NET_RAW on Linux."); wrap: word-wrap; }
+                            }
                             if root.dialog == 1: HorizontalLayout { spacing: 14px;
                                 VerticalLayout { spacing: 6px; Label { text: @tr("Step interval (ms)"); } Field { text <=> root.form-gap; } }
                                 VerticalLayout { spacing: 6px; Label { text: @tr("Sequence timeout (s)"); } Field { text <=> root.form-limit; } }
                             }
-                            if root.dialog == 2 && root.update-sequence: Label { text: @tr("Replace the sequence. Each server keeps its step interval and timeout."); wrap: word-wrap; }
+                            if root.dialog == 2 && root.update-sequence: Label { text: @tr("Replace the sequence and TCP flags. Each server keeps its step interval and timeout."); wrap: word-wrap; }
                         }
                     }
                     Card {

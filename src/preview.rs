@@ -442,6 +442,7 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     ui.invoke_save_server();
     assert!(ui.get_form_error().contains("有效的 IP"));
     ui.set_dialog(0);
+    verify_tcp_flags(&ui, &path)?;
     ui.invoke_delete_server();
     let saved = ConfigStore { path: path.clone() }.load()?;
     assert_eq!(
@@ -504,6 +505,69 @@ pub fn self_test() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::remove_file(path)?;
     println!(
         "界面操作、全选与勾选持久化、删除清理与保存失败、字体设置、单台／批量敲门、周期检测及中英文切换验证通过"
+    );
+    Ok(())
+}
+
+fn verify_tcp_flags(
+    ui: &AppWindow,
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use opensesame::model::TcpFlag;
+    let store = ConfigStore { path: path.into() };
+    let before = store.load()?;
+    ui.invoke_edit_server();
+    assert!(ui.get_form_tcp_flags().row_data(0).unwrap().active);
+    ui.invoke_preset_tcp_flags(41);
+    assert!(
+        ui.get_form_sequence_preview()
+            .ends_with("tcpflags=fin,psh,urg")
+    );
+    ui.invoke_save_server();
+    assert_eq!(ui.get_current_tcp_flags(), "FIN+PSH+URG");
+    let saved = store.load()?;
+    let current = saved
+        .servers
+        .iter()
+        .find(|server| Some(&server.id) == saved.current_server.as_ref())
+        .unwrap();
+    assert_eq!(current.tcp_flags_mask(), 41);
+    ui.invoke_edit_server();
+    assert!(ui.get_form_tcp_flags().row_data(2).unwrap().active);
+    for index in [2, 4, 5] {
+        ui.invoke_toggle_tcp_flag(index);
+    }
+    assert!(ui.get_form_sequence_preview().ends_with("tcpflags=none"));
+    // 取消编辑不修改已经保存的标志位。
+    ui.set_dialog(0);
+    assert_eq!(store.load()?, saved);
+    ui.invoke_edit_batch();
+    ui.invoke_preset_tcp_flags(18);
+    ui.set_update_sequence(true);
+    ui.invoke_save_batch();
+    assert_eq!(ui.get_dialog(), 0, "{}", ui.get_form_error());
+    let batched = store.load()?;
+    assert!(
+        batched
+            .servers
+            .iter()
+            .all(|server| server.tcp_flags == vec![TcpFlag::Syn, TcpFlag::Ack])
+    );
+    for (new, old) in batched.servers.iter().zip(&before.servers) {
+        assert_eq!(new.interval_ms, old.interval_ms);
+        assert_eq!(new.sequence_timeout_secs, old.sequence_timeout_secs);
+        assert_eq!(new.service_port, old.service_port);
+    }
+    // 后续网络自测继续使用普通 SYN，不会在测试机器上安装 WinDivert 驱动。
+    ui.invoke_edit_batch();
+    ui.invoke_preset_tcp_flags(2);
+    ui.invoke_save_batch();
+    assert!(
+        store
+            .load()?
+            .servers
+            .iter()
+            .all(|server| server.tcp_flags == vec![TcpFlag::Syn])
     );
     Ok(())
 }

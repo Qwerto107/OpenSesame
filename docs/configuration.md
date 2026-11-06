@@ -34,6 +34,7 @@
         { "port": 9000, "protocol": "tcp" }
       ],
       "interval_ms": 200,
+      "tcp_flags": ["syn"],
       "sequence_timeout_secs": 10,
       "service_port": 22,
       "service_protocol": "tcp",
@@ -79,6 +80,7 @@
 | `open_sequence` | `[{"port":7000,"protocol":"tcp"}]` | 至少一个步骤，按数组顺序发送 |
 | `open_sequence[].port` | 必填 | 敲门端口，整数 `1..65535` |
 | `open_sequence[].protocol` | 必填 | `tcp` 或 `udp`，同一序列可混合 |
+| `tcp_flags` | `["syn"]` | TCP 步骤共用，取值为 `syn / ack / fin / rst / psh / urg`，不可重复；空数组表示 NONE，缺失时兼容为 SYN |
 | `interval_ms` | `200` | 步骤间隔，整数 `10..60000` 毫秒 |
 | `sequence_timeout_secs` | `10` | 序列总时限，整数 `1..300` 秒 |
 | `service_port` | `22` | 业务端口，整数 `1..65535` |

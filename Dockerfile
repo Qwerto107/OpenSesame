@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # 源码构建与发行镜像共用运行层；CI 直接复用已校验的 Linux amd64 程序。
 FROM rust:1.99.1-bookworm AS backend
 WORKDIR /src
@@ -9,12 +10,12 @@ ARG GITHUB_SHA
 RUN cargo build --locked --release --no-default-features --features web --bin opensesame-web
 
 FROM debian:bookworm-slim AS runtime-files
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libgcc-s1 \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tzdata libgcc-s1 libcap2-bin \
     && groupadd -g 65532 opensesame && useradd -u 65532 -g opensesame -M opensesame \
     && mkdir /data /runtime-tmp /runtime-libs \
     && chown 65532:65532 /data && chmod 1777 /runtime-tmp \
     && cp --parents /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/libm.so.6 \
-       /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib64/ld-linux-x86-64.so.2 /runtime-libs/ \
+       /lib/x86_64-linux-gnu/libgcc_s.so.1 /lib/x86_64-linux-gnu/libcap.so.2 /lib64/ld-linux-x86-64.so.2 /runtime-libs/ \
     && rm -rf /var/lib/apt/lists/*
 
 FROM scratch AS runtime
@@ -41,7 +42,14 @@ RUN chmod 0755 /opensesame-web
 
 FROM runtime AS release
 COPY --from=release-binary /opensesame-web /opensesame-web
+USER 0
+# 文件能力使非 root 服务也能发送自定义 TCP 标志位；仅在构建时挂载 setcap。
+RUN --mount=type=bind,from=runtime-files,source=/usr/sbin/setcap,target=/setcap ["/setcap", "cap_net_raw=ep", "/opensesame-web"]
+USER 65532:65532
 
 # 默认目标支持本地从源码构建。
 FROM runtime AS standalone
 COPY --from=backend /src/target/release/opensesame-web /opensesame-web
+USER 0
+RUN --mount=type=bind,from=runtime-files,source=/usr/sbin/setcap,target=/setcap ["/setcap", "cap_net_raw=ep", "/opensesame-web"]
+USER 65532:65532

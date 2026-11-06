@@ -41,6 +41,14 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    if let Some(index) = std::env::args_os().position(|arg| arg == "--export-windivert-source") {
+        let path = std::env::args_os()
+            .nth(index + 1)
+            .ok_or("Missing WinDivert source output directory.")?;
+        opensesame::network::export_windivert_source(std::path::Path::new(&path))?;
+        return Ok(());
+    }
     #[cfg(feature = "qa")]
     if std::env::args().any(|argument| argument == "--screenshot") {
         return preview::run();

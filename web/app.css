@@ -871,7 +871,7 @@ dialog: :backdrop {
 
 .step-row {
   display: grid;
-  grid-template-columns: 24px 1fr 100px 32px;
+  grid-template-columns: 24px minmax(70px,1fr) 110px 104px;
   gap: 10px;
   align-items: center;
   margin-top: 10px;
@@ -896,6 +896,52 @@ dialog: :backdrop {
 
 .modal-section h2 {
   margin-bottom: 10px;
+}
+
+dialog:has(#server-form) {
+  width: min(680px,calc(100% - 32px));
+  height: min(820px,calc(100dvh - 80px));
+  max-height: none;
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: 0 24px 64px #0f172a38;
+}
+
+#server-form { height: 100%; display: flex; flex-direction: column; }
+.server-modal-head { height: 64px; flex: none; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+.server-modal-head h2 { font-size: 18px; }
+.server-modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.server-editor-card { flex: none; padding: 18px 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.server-editor-card > .modal-grid { margin-top: 14px; }
+.server-editor-card > .spread > .btn { height: 30px; }
+.server-modal-footer { height: 72px; flex: none; align-items: center; margin: 0; padding: 0 24px; border-top: 1px solid var(--border); }
+.tcp-flags { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+.flags-heading { gap: 12px; flex-wrap: wrap; }
+.flag-presets { display: flex; gap: 12px; }
+.flag-presets button { border: 0; padding: 0; background: none; color: var(--link); font: inherit; font-size: 12px; cursor: pointer; }
+.flag-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.fl { height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--control-border); background: var(--input); color: var(--muted); font: 12px 'JetBrains Mono',monospace; cursor: pointer; }
+.fl.on { background: var(--seg); border-color: var(--accent-border); color: var(--link); font-weight: 500; }
+.tcp-flags .hint, .send-preview + .hint { margin-top: 10px; }
+.send-preview { margin-top: 16px; border: 1px dashed var(--check); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--muted); line-height: 1.7; overflow-wrap: anywhere; }
+.flags-summary { margin-top: 14px; }
+.step-ops { display: flex; gap: 4px; }
+.step-ops .btn { padding: 0; width: 32px; min-width: 32px; height: 32px; }
+.step-protocol { display: flex; padding: 3px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--input); }
+.step-protocol button { flex: 1; padding: 6px 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.step-protocol button[aria-pressed=true] { color: var(--link); background: var(--seg); }
+.server-editor-card .step-row { padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--input); }
+dialog:has(#server-form)::backdrop { background: #0f172a61; }
+:root[data-theme=light] dialog:has(#server-form) { background: #EEF2F8; }
+
+@media (max-width: 600px) {
+  dialog:has(#server-form) { height: calc(100dvh - 32px); }
+  .server-modal-body { padding: 16px; }
+  .server-editor-card { padding: 16px; }
+  .step-row { grid-template-columns: 20px minmax(60px,1fr) 100px; gap: 6px; }
+  .step-ops { grid-column: 2/-1; justify-content: flex-end; }
 }
 
 .menu {
