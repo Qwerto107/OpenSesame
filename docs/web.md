@@ -63,7 +63,7 @@ docker compose up -d --pull always
 
 打开 `http://127.0.0.1:18010` 登录。Compose 默认只向宿主机回环地址映射端口；远程访问时配置 HTTPS 反向代理，并将 `.env` 中的 `OPENSESAME_WEB_ORIGIN` 改为实际访问来源。Google 登录可在 `.env` 中配置三个对应环境变量。
 
-升级使用 `docker compose pull && docker compose up -d`。备份时先停止容器，再复制整个 `data` 目录。可将 Compose 的镜像标签固定为 `1.0.5` 以便回退。访问密码每次启动都需要提供，修改后旧会话失效。
+升级使用 `docker compose pull && docker compose up -d`。备份时先停止容器，再复制整个 `data` 目录。可将 Compose 的镜像标签固定为 `1.0.6` 以便回退。访问密码每次启动都需要提供，修改后旧会话失效。
 
 程序提供 `opensesame-web healthcheck` 命令，检查本机认证状态接口是否正常响应，不依赖 Shell。源码构建可运行 `docker build --build-arg GITHUB_SHA="$(git rev-parse HEAD)" -t opensesame:local .`，再将 Compose 镜像替换为本地标签。
 
@@ -131,10 +131,6 @@ bash scripts/build.sh check-web
 bash scripts/build.sh test-web
 # 前端自动检测的可见性、登录状态及周期验证
 node scripts/test-web-auto-check.cjs
-# TCP Flags 快捷组合、切换和发送预览验证
-node scripts/test-web-tcp-flags.cjs
-# 具有 CAP_NET_RAW 的 Linux 环境可额外运行回环抓包测试
-cargo test --locked --no-default-features --features web captures_custom_flags -- --ignored
 # Linux amd64 发行构建
 bash scripts/build.sh release-web
 # 打包及生成 SHA-256

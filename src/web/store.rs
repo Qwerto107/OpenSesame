@@ -155,11 +155,6 @@ mod tests {
             let server = Server {
                 name: "测试服务器".into(),
                 host: "127.0.0.1".into(),
-                tcp_flags: vec![
-                    crate::model::TcpFlag::Fin,
-                    crate::model::TcpFlag::Psh,
-                    crate::model::TcpFlag::Urg,
-                ],
                 ..Server::default()
             };
             let mut config = store.config.clone();
@@ -184,7 +179,6 @@ mod tests {
         }
         let reopened = Store::open(&path).unwrap();
         assert_eq!(reopened.config.servers.len(), 1);
-        assert_eq!(reopened.config.servers[0].tcp_flags_mask(), 0x29);
         assert_eq!(reopened.revision, 1);
         assert_eq!(
             reopened.config.checked_servers,

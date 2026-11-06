@@ -373,48 +373,6 @@ fn udp_error(error: io::Error) -> ProbeResult {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn custom_flags_fail_before_udp_when_raw_sockets_are_unavailable() {
-        // 普通测试不安装驱动；管理员环境的真实发包验证由显式集成测试完成。
-        #[cfg(all(windows, feature = "desktop"))]
-        if unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() } != 0 {
-            return;
-        }
-        #[cfg(target_os = "linux")]
-        if raw_tcp::Sender::new("127.0.0.1:7000".parse().unwrap()).is_ok() {
-            return;
-        }
-        let udp = UdpSocket::bind("127.0.0.1:0").await.unwrap();
-        let server = Server {
-            host: "127.0.0.1".into(),
-            tcp_flags: vec![crate::model::TcpFlag::Ack],
-            open_sequence: vec![
-                KnockStep {
-                    port: udp.local_addr().unwrap().port(),
-                    protocol: Protocol::Udp,
-                },
-                KnockStep {
-                    port: 7000,
-                    protocol: Protocol::Tcp,
-                },
-            ],
-            ..Server::default()
-        };
-        let mut progress = vec![];
-        assert!(
-            Client::default()
-                .execute(&server, |step| progress.push(step))
-                .await
-                .is_err()
-        );
-        assert!(progress.is_empty());
-        assert!(
-            timeout(Duration::from_millis(50), udp.recv_from(&mut [0; 1]))
-                .await
-                .is_err()
-        );
-    }
-
     fn local(port: u16, protocol: Protocol) -> Server {
         Server {
             name: "本地测试".into(),

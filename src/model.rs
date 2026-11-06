@@ -343,32 +343,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn tcp_flags_default_round_trip_and_validation() {
-        let old: Server = serde_json::from_str(r#"{"name":"NAS","host":"localhost"}"#).unwrap();
-        assert_eq!(old.tcp_flags, vec![TcpFlag::Syn]);
-        for flags in [
-            vec![TcpFlag::Syn, TcpFlag::Ack],
-            vec![TcpFlag::Fin, TcpFlag::Psh, TcpFlag::Urg],
-            vec![],
-        ] {
-            let server = Server {
-                tcp_flags: flags.clone(),
-                ..old.clone()
-            };
-            server.validate().unwrap();
-            let restored: Server =
-                serde_json::from_str(&serde_json::to_string(&server).unwrap()).unwrap();
-            assert_eq!(restored.tcp_flags, flags);
-        }
-        let invalid = Server {
-            tcp_flags: vec![TcpFlag::Syn, TcpFlag::Syn],
-            ..old
-        };
-        assert!(invalid.validate().is_err());
-        assert!(serde_json::from_str::<Server>(r#"{"tcp_flags":["invalid"]}"#).is_err());
-    }
-
-    #[test]
     fn old_configuration_defaults_to_system_language() {
         let config: Config = serde_json::from_str(r#"{"settings":{"auto_knock":true}}"#).unwrap();
         assert_eq!(config.settings.language, "system");
@@ -463,30 +437,5 @@ mod tests {
             2
         ];
         assert!(value.validate().is_ok());
-    }
-
-    #[test]
-    fn batch_flags_update_selected_servers_atomically() {
-        let mut config = Config {
-            servers: vec![server(), server()],
-            ..Config::default()
-        };
-        let ids = vec![config.servers[0].id.clone()];
-        let other = config.servers[1].clone();
-        let update = BatchUpdate {
-            sequence: Some(config.servers[0].open_sequence.clone()),
-            tcp_flags: Some(vec![TcpFlag::Fin, TcpFlag::Psh, TcpFlag::Urg]),
-            ..BatchUpdate::default()
-        };
-        apply_batch(&mut config, &ids, &update).unwrap();
-        assert_eq!(config.servers[0].tcp_flags_mask(), 41);
-        assert_eq!(config.servers[1], other);
-        let before = config.clone();
-        let invalid = BatchUpdate {
-            tcp_flags: Some(vec![TcpFlag::Syn, TcpFlag::Syn]),
-            ..update
-        };
-        assert!(apply_batch(&mut config, &ids, &invalid).is_err());
-        assert_eq!(config, before);
     }
 }

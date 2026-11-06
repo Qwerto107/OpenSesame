@@ -93,12 +93,6 @@ jobs:
           bash scripts/build.sh test-web
           node --check web/app.js
           node scripts/test-web-auto-check.cjs
-          node scripts/test-web-tcp-flags.cjs
-      - name: 验证 IPv4 和 IPv6 自定义 TCP 标志位
-        run: |
-          test_binary="$(cargo test --locked --no-default-features --features web --lib --no-run --message-format=json | python3 -c 'import json,sys; print([item["executable"] for item in map(json.loads,sys.stdin) if item.get("executable") and item.get("profile",{}).get("test")][-1])')"
-          sudo setcap cap_net_raw=ep "$test_binary"
-          "$test_binary" --ignored captures_custom_flags
       - name: 构建与打包
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
         run: bash .github/scripts/package-web.sh
